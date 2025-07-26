@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-translate-key="face_page_title">얼굴 인식 올인원 웹앱</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root { --primary: #2196F3; --primary-dark: #1976D2; --danger: #f44336; --bg: #f0f2f5; --card: white; --text: #333; --border: #ddd; }
+        body { font-family: 'Noto Sans KR', sans-serif; background-color: var(--bg); }
+        .tab { flex: 1; padding: 15px; text-align: center; cursor: pointer; border: none; background: transparent; font-size: 14px; md:font-size: 16px; font-weight: 600; color: #666; transition: all 0.3s; position: relative; }
+        .tab:hover { background: rgba(0,0,0,0.05); }
+        .tab.active { color: var(--primary); background: rgba(33, 150, 243, 0.1); }
+        .tab.active::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: var(--primary); }
+        .tab-content { display: none; animation: fadeIn 0.3s ease-in; }
+        .tab-content.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .btn { padding: 12px 24px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.3s; margin-right: 10px; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .btn:disabled { background-color: #9ca3af; cursor: not-allowed; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover:not(:disabled) { background: var(--primary-dark); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3); }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-danger:hover { background: #d32f2f; }
+        .status { display: inline-block; padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; margin-left: 10px; }
+        .status.connected { background: #e8f5e9; color: #2e7d32; }
+        .status.disconnected { background: #ffebee; color: #c62828; }
+        #canvas-container { position: relative; width: 100%; max-width: 640px; aspect-ratio: 4 / 3; }
+        #output_canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        /* 토글 스위치 스타일 */
+        .switch { position: relative; display: inline-block; width: 50px; height: 28px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 28px; }
+        .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--primary); }
+        input:checked + .slider:before { transform: translateX(22px); }
+    </style>
+</head>
+<body class="p-4">
+    <div class="max-w-4xl w-full mx-auto p-4 md:p-6 bg-white rounded-2xl shadow-lg">
+        <header class="relative text-center mb-6 p-5 rounded-2xl shadow-md bg-white">
+             <a href="index.html" title="메인으로 돌아가기" class="absolute left-4 md:left-6 top-1/2 -translate-y-1/2 p-2 rounded-full hover:bg-gray-100 transition-colors" data-translate-key="go_to_main_title" title-key="go_to_main_title">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                </svg>
+            </a>
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-800" style="color: var(--primary);" data-translate-key="face_page_title">😀 얼굴 인식 올인원</h1>
+            <p class="text-gray-500 mt-2" data-translate-key="face_page_subtitle">MediaPipe의 얼굴 인식 기술을 활용한 다양한 기능을 제공합니다.</p>
+        </header>
+
+        <main class="flex flex-col items-center">
+            <div class="w-full max-w-3xl mb-6">
+                <div class="tabs rounded-lg overflow-hidden border">
+                    <button class="tab active" onclick="FaceRecognitionApp.switchTab('face-coords')" data-translate-key="tab_face_coords">📍 미간 좌표</button>
+                    <button class="tab" onclick="FaceRecognitionApp.switchTab('yawn-detection')" data-translate-key="tab_yawn">👄 하품 감지</button>
+                    <button class="tab" onclick="FaceRecognitionApp.switchTab('blink-detection')" data-translate-key="tab_blink">👁️ 눈 깜박임</button>
+                    <button class="tab" onclick="FaceRecognitionApp.switchTab('face-count')" data-translate-key="tab_face_count">👨‍👩‍👧‍👦 얼굴 개수</button>
+                    <button class="tab" onclick="FaceRecognitionApp.switchTab('face-size')" data-translate-key="tab_face_size">📏 얼굴 크기</button>
+                    <button class="tab" onclick="FaceRecognitionApp.switchTab('face-service6')" data-translate-key="tab_face_service6">✨ 서비스 6</button>
+                </div>
+            </div>
+
+            <div id="canvas-container" class="rounded-xl overflow-hidden shadow-md border-2 border-gray-200 bg-black">
+                <video id="input_video" class="hidden"></video>
+                <canvas id="output_canvas" width="640px" height="480px"></canvas>
+            </div>
+            
+            <div id="start-button-container" class="text-center mt-6">
+                <button id="start-btn" class="btn btn-primary text-lg" data-translate-key="start_recognition">인식 시작</button>
+            </div>
+
+            <div class="w-full max-w-lg mt-6">
+                <div class="mt-4">
+                    <div id="face-coords-tab" class="tab-content active"><div class="bg-gray-50 p-4 rounded-lg text-center"><h3 class="font-semibold text-gray-600 mb-2" data-translate-key="glabella_coords">미간 중심 좌표</h3><div id="coords-display" class="text-2xl font-bold text-blue-600 opacity-50">X: <span id="x-coord">0</span>, Y: <span id="y-coord">0</span></div></div></div>
+                    <div id="yawn-detection-tab" class="tab-content"><div class="bg-gray-50 p-4 rounded-lg text-center"><h3 class="font-semibold text-gray-600 mb-2" data-translate-key="mouth_open_size">입 벌림 크기</h3><div id="mouth-open-display" class="text-2xl font-bold text-green-600 opacity-50"><span id="mouth-open-value">0</span></div></div></div>
+                    <div id="blink-detection-tab" class="tab-content"><div class="bg-gray-50 p-4 rounded-lg text-center"><h3 class="font-semibold text-gray-600 mb-2" data-translate-key="blink_status">눈 깜박임 상태 (1: 깜박임, 0: 평상시)</h3><div id="blink-display" class="grid grid-cols-3 gap-4 text-2xl font-bold opacity-50"><div class="text-purple-600"><span data-translate-key="left_eye">왼쪽:</span> <span id="left-blink-status">0</span></div><div class="text-purple-600"><span data-translate-key="right_eye">오른쪽:</span> <span id="right-blink-status">0</span></div><div class="text-purple-600"><span data-translate-key="both_eyes">양쪽:</span> <span id="both-blink-status">0</span></div></div></div></div>
+                    <div id="face-count-tab" class="tab-content"><div class="bg-gray-50 p-4 rounded-lg text-center"><h3 class="font-semibold text-gray-600 mb-2" data-translate-key="detected_face_count">감지된 얼굴 개수</h3><div id="face-count-display" class="text-2xl font-bold text-teal-600 opacity-50"><span id="face-count-value">0</span> <span data-translate-key="unit_faces">개</span></div></div></div>
+                    <div id="face-size-tab" class="tab-content"><div class="bg-gray-50 p-4 rounded-lg text-center"><h3 class="font-semibold text-gray-600 mb-2" data-translate-key="face_box_size">얼굴 상자 크기 (너비, 높이)</h3><div id="face-size-display" class="text-2xl font-bold text-orange-600 opacity-50">X: <span id="face-width-value">0</span>, Y: <span id="face-height-value">0</span></div></div></div>
+                    <div id="face-service6-tab" class="tab-content text-center py-10"><h3 class="text-2xl font-bold text-gray-400" data-translate-key="coming_soon">Coming Soon</h3></div>
+                </div>
+            </div>
+        </main>
+
+        <div class="card mt-6 p-4 bg-gray-50 rounded-lg">
+            <h3 class="text-lg font-bold mb-3" data-translate-key="connection_settings">🔌 연결 설정</h3>
+            <div class="input-group mb-4">
+                <label for="ble-device-type" class="text-sm font-medium text-gray-700" data-translate-key="ble_device_type">블루투스 장치 유형</label>
+                <select id="ble-device-type" class="w-full mt-1 p-2 border border-gray-300 rounded-md">
+                    <option value="microbit" data-translate-key="microbit_device">마이크로비트 (이름으로 검색)</option>                    
+                    <option value="generic" data-translate-key="generic_uart_device">일반 UART 장치 (Raspberry Pi Pico W, Arduino, ESP32 등)</option>
+                </select>
+            </div>
+            <div class="flex flex-wrap items-center">
+                <button id="connectSerialBtn" class="btn btn-primary" data-translate-key="serial_connect">시리얼 연결</button>
+                <button id="disconnectSerialBtn" class="btn btn-danger" disabled data-translate-key="serial_disconnect">해제</button>
+                <button id="connectBleBtn" class="btn btn-primary" onclick="ConnectionManager.connectBLE()" data-translate-key="ble_connect">블루투스 연결</button>
+                <button id="disconnectBleBtn" class="btn btn-danger" disabled onclick="ConnectionManager.disconnectBLE()" data-translate-key="ble_disconnect">해제</button>
+                <span id="connectionStatus" class="status disconnected" data-translate-key="status_disconnected">연결 안됨</span>
+            </div>
+            <div class="mt-4 pt-4 border-t flex items-center justify-between">
+                <div class="flex items-center">
+                    <span class="text-sm font-medium text-gray-700">전송 방식:</span>
+                    <span id="send-mode-status" class="ml-2 text-sm font-bold"></span>
+                </div>
+                <label class="switch">
+                    <input type="checkbox" id="send-once-toggle" checked>
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+
+        <div class="card mt-6 p-4 bg-blue-50 rounded-lg">
+            <h3 class="text-lg font-bold mb-3" data-translate-key="usage_guide">💡 사용 방법</h3>
+            <ol class="list-decimal list-inside space-y-2 text-sm text-gray-700">
+                <li data-translate-key="guide_face_1">상단 탭에서 원하는 얼굴 인식 기능을 선택하세요.</li>
+                <li data-translate-key="guide_face_2">'인식 시작' 버튼을 클릭하여 카메라를 활성화하세요.</li>
+                <li data-translate-key="guide_face_3">MCU 장치를 시리얼 또는 블루투스로 연결하고, 값 전송 방식을 선택하세요(1회/연속).</li>
+                <li data-translate-key="guide_face_4">얼굴이 인식되면 실시간으로 데이터가 MCU로 전송됩니다.</li>
+                <li data-translate-key="guide_face_5">MCU에서 수신한 데이터를 활용하여 다양한 출력장치를 제어하세요.</li>
+            </ol>
+        </div>
+
+        <div class="card mt-6 p-4 bg-gray-100 rounded-lg">
+            <h3 class="text-lg font-bold mb-3" data-translate-key="developer_info">👨‍💻 개발자 정보</h3>
+            <div class="text-sm text-gray-600 space-y-2">
+                <p>
+                    <strong data-translate-key="developer_name">김석전</strong><span data-translate-key="developer_affiliation_face">, 송도중학교 정보교사 / 인하대학교 겸임교수</span> 📅 Since 2023.04.24 | 📧 alphaco@kakao.com
+                </p>
+                <div class="mt-3 p-3 bg-white rounded border border-gray-200">
+                    <p class="mb-2" data-translate-key="developer_info_face">WebSerial과 WebBLE를 이용해 얼굴 인식 결과를 유/무선으로 MCU에 전송하는 웹앱입니다.</p>
+                    <p class="mb-2" data-translate-key="app_description_2">✅ 아두이노, 마이크로비트, ESP32, 라즈베리파이 피코 등 모든 MCU를 사용할 수 있습니다.</p>
+                    <p class="mb-2" data-translate-key="app_description_3">🌐 Chrome, Edge 브라우저에서 테스트 되었습니다.</p>
+                    <p class="mb-2" data-translate-key="developer_info_hardware_note_face">⚙️ 하드웨어는 블록코딩이나 텍스트 코딩을 이용해 사전에 코드 업로드가 필요합니다.</p>
+                    <p class="mb-2" data-translate-key="app_description_5">🚀 인공지능에 다양한 출력장치를 연결하여 AIoT 애플리케이션을 제작해 보세요.</p>
+                    <p class="mt-3 font-medium" data-translate-key="ccl">📜 CCL: BY-NC-ND</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function _t(key, params = {}) {
+            const translations = {
+                'loading_model': '모델 로딩 중...', 'recognizing': '인식 중...', 'start_recognition': '인식 시작',
+                'status_connected': `${params.connectionType || '장치'} 연결됨`, 'status_disconnected': '연결 안됨',
+                'serial_connect': '시리얼 연결', 'serial_connect_error': `시리얼 연결 오류: ${params.error || '알 수 없는 오류'}`,
+                'ble_connect': '블루투스 연결', 'ble_connect_success': '블루투스 연결 성공!', 'ble_connect_error': `블루투스 연결 오류: ${params.error || '알 수 없는 오류'}`
+            };
+            return translations[key] || key;
+        }
+
+        const CONFIG = { EAR_THRESHOLD: 0.16, BLINK_CONSECUTIVE_FRAMES: 2, CAMERA_WIDTH: 640, CAMERA_HEIGHT: 480, SERIAL_BAUD_RATE: 9600, BLE_SERVICE_UUID: '6e400001-b5a3-f393-e0a9-e50e24dcca9e', BLE_CHARACTERISTIC_UUID: '6e400002-b5a3-f393-e0a9-e50e24dcca9e', SEND_INTERVAL_MS: 100 };
+        const LANDMARKS = { GLABELLA: 6, UPPER_LIP: 13, LOWER_LIP: 14, LEFT_EYE: [362, 385, 387, 263, 373, 380], RIGHT_EYE: [33, 160, 158, 133, 153, 144] };
+        const Renderer = { drawBoundingBox(ctx, box) { ctx.strokeStyle = '#FFD700'; ctx.lineWidth = 4; ctx.strokeRect(box.minX, box.minY, box.maxX - box.minX, box.maxY - box.minY); }, drawPoint(ctx, x, y, color = '#FF0000', radius = 5) { ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, y, radius, 0, 2 * Math.PI); ctx.fill(); }, clearAndDrawVideo(ctx, video, width, height) { ctx.save(); ctx.clearRect(0, 0, width, height); ctx.translate(width, 0); ctx.scale(-1, 1); ctx.drawImage(video, 0, 0, width, height); } };
+        const FaceAnalyzer = { getBoundingBox(landmarks, width, height) { let minX = width, minY = height, maxX = 0, maxY = 0; for (const lm of landmarks) { const x = lm.x * width, y = lm.y * height; if (x < minX) minX = x; if (y < minY) minY = y; if (x > maxX) maxX = x; if (y > maxY) maxY = y; } return {minX, minY, maxX, maxY}; }, processGlabella(landmarks, ctx, width, height) { UIManager.elements.coordsDisplay.classList.remove('opacity-50'); const midPoint = landmarks[LANDMARKS.GLABELLA]; if (midPoint) { const x = midPoint.x * width, y = midPoint.y * height; Renderer.drawPoint(ctx, x, y); const realX = Math.round(width - x), realY = Math.round(y); UIManager.elements.xCoord.textContent = realX; UIManager.elements.yCoord.textContent = realY; return `${realX},${realY}`; } return null; }, processMouthOpen(landmarks, ctx, width, height) { UIManager.elements.mouthDisplay.classList.remove('opacity-50'); const upperLip = landmarks[LANDMARKS.UPPER_LIP], lowerLip = landmarks[LANDMARKS.LOWER_LIP]; if (upperLip && lowerLip) { [upperLip, lowerLip].forEach(p => Renderer.drawPoint(ctx, p.x*width, p.y*height, '#00FFFF', 3)); const dist = Math.hypot(upperLip.x - lowerLip.x, upperLip.y - lowerLip.y); const val = Math.round(dist * 1000); UIManager.elements.mouthValue.textContent = val; return val.toString(); } return null; }, calculateEAR: (eyeIdx, lms) => (Math.hypot(lms[eyeIdx[1]].x-lms[eyeIdx[5]].x, lms[eyeIdx[1]].y-lms[eyeIdx[5]].y) + Math.hypot(lms[eyeIdx[2]].x-lms[eyeIdx[4]].x, lms[eyeIdx[2]].y-lms[eyeIdx[4]].y)) / (2*Math.hypot(lms[eyeIdx[0]].x-lms[eyeIdx[3]].x, lms[eyeIdx[0]].y-lms[eyeIdx[3]].y)), processBlinks(landmarks) { UIManager.elements.blinkDisplay.classList.remove('opacity-50'); const leftEAR = this.calculateEAR(LANDMARKS.LEFT_EYE, landmarks); const rightEAR = this.calculateEAR(LANDMARKS.RIGHT_EYE, landmarks); if (leftEAR < CONFIG.EAR_THRESHOLD) AppState.leftEyeBlinkCounter++; else AppState.leftEyeBlinkCounter = 0; if (rightEAR < CONFIG.EAR_THRESHOLD) AppState.rightEyeBlinkCounter++; else AppState.rightEyeBlinkCounter = 0; let l=0, r=0, b=0; const isL = AppState.leftEyeBlinkCounter >= CONFIG.BLINK_CONSECUTIVE_FRAMES; const isR = AppState.rightEyeBlinkCounter >= CONFIG.BLINK_CONSECUTIVE_FRAMES; if (isL && isR) b=1; else if (isL) l=1; else if (isR) r=1; UIManager.elements.leftBlink.textContent=l; UIManager.elements.rightBlink.textContent=r; UIManager.elements.bothBlink.textContent=b; return `${l},${r},${b}`; }, processFaceCount(allFaces, ctx, width, height) { UIManager.elements.faceCountDisplay.classList.remove('opacity-50'); const faceCount = allFaces.length; UIManager.elements.faceCountValue.textContent = faceCount; allFaces.forEach(lms => Renderer.drawBoundingBox(ctx, this.getBoundingBox(lms, width, height))); return faceCount.toString(); }, processFaceSize(box) { UIManager.elements.faceSizeDisplay.classList.remove('opacity-50'); const w = Math.round(box.maxX-box.minX), h = Math.round(box.maxY-box.minY); UIManager.elements.faceWidth.textContent=w; UIManager.elements.faceHeight.textContent=h; return `${w},${h}`; } };
+
+        const UIManager = {
+            elements: {},
+            init() {
+                this.elements = {
+                    video: document.getElementById('input_video'),
+                    canvas: document.getElementById('output_canvas'),
+                    canvasCtx: document.getElementById('output_canvas').getContext('2d'),
+                    startBtn: document.getElementById('start-btn'),
+                    connectSerialBtn: document.getElementById('connectSerialBtn'),
+                    disconnectSerialBtn: document.getElementById('disconnectSerialBtn'),
+                    connectBleBtn: document.getElementById('connectBleBtn'),
+                    disconnectBleBtn: document.getElementById('disconnectBleBtn'),
+                    connectionStatus: document.getElementById('connectionStatus'),
+                    coordsDisplay: document.getElementById('coords-display'), xCoord: document.getElementById('x-coord'), yCoord: document.getElementById('y-coord'),
+                    mouthDisplay: document.getElementById('mouth-open-display'), mouthValue: document.getElementById('mouth-open-value'),
+                    blinkDisplay: document.getElementById('blink-display'), leftBlink: document.getElementById('left-blink-status'), rightBlink: document.getElementById('right-blink-status'), bothBlink: document.getElementById('both-blink-status'),
+                    faceCountDisplay: document.getElementById('face-count-display'), faceCountValue: document.getElementById('face-count-value'),
+                    faceSizeDisplay: document.getElementById('face-size-display'), faceWidth: document.getElementById('face-width-value'), faceHeight: document.getElementById('face-height-value'),
+                    sendOnceToggle: document.getElementById('send-once-toggle'), sendModeStatus: document.getElementById('send-mode-status')
+                };
+            },
+            resetAll() {
+                ['coordsDisplay', 'mouthDisplay', 'blinkDisplay', 'faceCountDisplay', 'faceSizeDisplay'].forEach(key => this.elements[key].classList.add('opacity-50'));
+                this.elements.xCoord.textContent = '0'; this.elements.yCoord.textContent = '0'; this.elements.mouthValue.textContent = '0';
+                this.elements.leftBlink.textContent = '0'; this.elements.rightBlink.textContent = '0'; this.elements.bothBlink.textContent = '0';
+                this.elements.faceCountValue.textContent = '0'; this.elements.faceWidth.textContent = '0'; this.elements.faceHeight.textContent = '0';
+            },
+            updateConnectionStatus() {
+                const serialConnected = !!ConnectionManager.port;
+                const bleConnected = !!(ConnectionManager.bleDevice?.gatt?.connected);
+
+                if (serialConnected) {
+                    this.elements.connectionStatus.textContent = _t('status_connected', { connectionType: '시리얼' });
+                    this.elements.connectionStatus.className = 'status connected';
+                } else if (bleConnected) {
+                    this.elements.connectionStatus.textContent = _t('status_connected', { connectionType: '블루투스' });
+                    this.elements.connectionStatus.className = 'status connected';
+                } else {
+                    this.elements.connectionStatus.textContent = _t('status_disconnected');
+                    this.elements.connectionStatus.className = 'status disconnected';
+                }
+
+                this.elements.connectSerialBtn.disabled = serialConnected;
+                this.elements.disconnectSerialBtn.disabled = !serialConnected;
+                this.elements.connectBleBtn.disabled = bleConnected;
+                this.elements.disconnectBleBtn.disabled = !bleConnected;
+            },
+            updateStartButton(textKey, disabled) {
+                this.elements.startBtn.textContent = _t(textKey);
+                this.elements.startBtn.disabled = disabled;
+            },
+            updateSendModeStatus(sendOnce) {
+                if (sendOnce) {
+                    this.elements.sendModeStatus.textContent = '1회 전송 (once)';
+                    this.elements.sendModeStatus.className = 'ml-2 text-sm font-bold text-green-600';
+                } else {
+                    this.elements.sendModeStatus.textContent = '연속 전송 (continuously)';
+                    this.elements.sendModeStatus.className = 'ml-2 text-sm font-bold text-blue-600';
+                }
+            }
+        };
+
+        const ConnectionManager = {
+            port: null, writer: null,
+            bleDevice: null, bleCharacteristic: null,
+            
+            async sendToMCU(data) {
+                const dataToSend = data + '\n';
+                if (this.port?.writable) {
+                    try {
+                        this.writer = this.port.writable.getWriter();
+                        await this.writer.write(new TextEncoder().encode(dataToSend));
+                    } catch (e) { console.error("시리얼 데이터 전송 오류:", e); } 
+                    finally { if (this.writer) { this.writer.releaseLock(); this.writer = null; } }
+                }
+                if (this.bleCharacteristic) {
+                    try { await this.bleCharacteristic.writeValue(new TextEncoder().encode(dataToSend)); } 
+                    catch (e) { console.error("BLE 데이터 전송 오류:", e); }
+                }
+            },
+            
+            async connectSerial() { 
+                try {
+                    const port = await navigator.serial.requestPort(); 
+                    await port.open({ baudRate: CONFIG.SERIAL_BAUD_RATE }); 
+                    this.port = port;
+                    UIManager.updateConnectionStatus();
+                } catch(e) {
+                    if (e.name === 'NotFoundError') return; 
+                    alert(_t('serial_connect_error', { error: e.message }));
+                } 
+            },
+
+            async disconnectSerial() { 
+                if (!this.port) return;
+                try { 
+                    if (this.port.readable || this.port.writable) await this.port.close();
+                } catch (e) { console.error('포트 닫기 중 오류:', e); } 
+                finally { 
+                    this.port = null; 
+                    UIManager.updateConnectionStatus();
+                }
+            },
+
+            async connectBLE() {
+                const devType = document.getElementById('ble-device-type').value;
+                const opts = devType === 'microbit' ? {filters:[{namePrefix:"BBC micro:bit"}], optionalServices:[CONFIG.BLE_SERVICE_UUID]} : {filters:[{services:[CONFIG.BLE_SERVICE_UUID]}]};
+                try {
+                    this.bleDevice = await navigator.bluetooth.requestDevice(opts);
+                    this.bleDevice.addEventListener('gattserverdisconnected', () => {
+                        this.bleDevice = null;
+                        this.bleCharacteristic = null;
+                        UIManager.updateConnectionStatus();
+                    });
+                    const server = await this.bleDevice.gatt.connect();
+                    const service = await server.getPrimaryService(CONFIG.BLE_SERVICE_UUID);
+                    this.bleCharacteristic = await service.getCharacteristic(CONFIG.BLE_CHARACTERISTIC_UUID);
+                    UIManager.updateConnectionStatus(); 
+                    alert(_t('ble_connect_success'));
+                } catch(e) {
+                    alert(_t('ble_connect_error', { error: e.message })); 
+                    UIManager.updateConnectionStatus();
+                }
+            },
+            disconnectBLE() { 
+                if(this.bleDevice?.gatt.connected){
+                    this.bleDevice.gatt.disconnect();
+                } 
+            }
+        };
+
+        const AppState = { isRunning: false, activeTabId: 'face-coords', leftEyeBlinkCounter: 0, rightEyeBlinkCounter: 0, faceMesh: null, camera: null, lastSendTime: 0, sendOnce: true, lastSentData: null };
+
+        const FaceRecognitionApp = {
+            onResults(results) {
+                const { canvasCtx, canvas } = UIManager.elements;
+                Renderer.clearAndDrawVideo(canvasCtx, results.image, canvas.width, canvas.height);
+                let dataString = null;
+                if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
+                    if (AppState.activeTabId === 'face-count') {
+                        const faceCount = FaceAnalyzer.processFaceCount(results.multiFaceLandmarks, canvasCtx, canvas.width, canvas.height);
+                        dataString = `${faceCount},0,0,0`;
+                    } else {
+                        const landmarks = results.multiFaceLandmarks[0];
+                        const box = FaceAnalyzer.getBoundingBox(landmarks, canvas.width, canvas.height);
+                        Renderer.drawBoundingBox(canvasCtx, box);
+                        let data;
+                        switch (AppState.activeTabId) {
+                            case 'face-coords': data = FaceAnalyzer.processGlabella(landmarks, canvasCtx, canvas.width, canvas.height); if (data) dataString = `${data},0,0`; break;
+                            case 'yawn-detection': data = FaceAnalyzer.processMouthOpen(landmarks, canvasCtx, canvas.width, canvas.height); if (data) dataString = `${data},0,0,0`; break;
+                            case 'blink-detection': data = FaceAnalyzer.processBlinks(landmarks); if (data) dataString = `${data},0`; break;
+                            case 'face-size': data = FaceAnalyzer.processFaceSize(box); if (data) dataString = `${data},0,0`; break;
+                        }
+                    }
+                } else {
+                    UIManager.resetAll();
+                    AppState.lastSentData = null;
+                }
+
+                if (dataString) {
+                    if (AppState.sendOnce) {
+                        if (AppState.lastSentData !== dataString) {
+                            ConnectionManager.sendToMCU(dataString);
+                            AppState.lastSentData = dataString;
+                        }
+                    } else {
+                        const now = Date.now();
+                        if (now - AppState.lastSendTime > CONFIG.SEND_INTERVAL_MS) {
+                            ConnectionManager.sendToMCU(dataString);
+                            AppState.lastSendTime = now;
+                        }
+                    }
+                }
+                canvasCtx.restore();
+            },
+            switchTab(tabId) {
+                AppState.activeTabId = tabId;
+                AppState.lastSentData = null; 
+                document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c=>c.classList.remove('active'));
+                const tabEl = document.querySelector(`button[onclick="FaceRecognitionApp.switchTab('${tabId}')"]`);
+                const contentEl = document.getElementById(`${tabId}-tab`);
+                if(tabEl) tabEl.classList.add('active');
+                if(contentEl) contentEl.classList.add('active');
+                if (AppState.faceMesh) {
+                    const maxFaces = (tabId === 'face-count') ? 20 : 1; 
+                    AppState.faceMesh.setOptions({maxNumFaces: maxFaces, refineLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5});
+                }
+            },
+            async startRecognition() {
+                if (AppState.isRunning) return;
+                UIManager.updateStartButton('loading_model', true);
+                AppState.faceMesh = new FaceMesh({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`});
+                await AppState.faceMesh.setOptions({maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5});
+                AppState.faceMesh.onResults(this.onResults);
+                AppState.camera = new Camera(UIManager.elements.video, {
+                    onFrame: async () => await AppState.faceMesh.send({image: UIManager.elements.video}),
+                    width: CONFIG.CAMERA_WIDTH, height: CONFIG.CAMERA_HEIGHT
+                });
+                await AppState.camera.start();
+                AppState.isRunning = true;
+                UIManager.updateStartButton('recognizing', false);
+                this.switchTab(AppState.activeTabId);
+            },
+            init() {
+                UIManager.init();
+                UIManager.updateSendModeStatus(AppState.sendOnce);
+                UIManager.elements.startBtn.addEventListener('click', () => this.startRecognition());
+                UIManager.elements.connectSerialBtn.addEventListener('click', () => ConnectionManager.connectSerial());
+                UIManager.elements.disconnectSerialBtn.addEventListener('click', () => ConnectionManager.disconnectSerial());
+                UIManager.elements.sendOnceToggle.addEventListener('change', (e) => {
+                    AppState.sendOnce = e.target.checked;
+                    UIManager.updateSendModeStatus(AppState.sendOnce);
+                });
+                
+                window.FaceRecognitionApp = this;
+                window.ConnectionManager = ConnectionManager;
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+             FaceRecognitionApp.init()
+        });
+        // 우클릭 방지
+        document.addEventListener('contextmenu', event => event.preventDefault());
+    </script>
+</body>
+</html>

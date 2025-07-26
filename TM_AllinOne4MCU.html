@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-translate-key="tm_page_title">TM All-in-One for MCU</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/pose@0.8.6/dist/teachablemachine-pose.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/speech-commands@0.4.0/dist/speech-commands.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root { --primary: #4CAF50; --primary-dark: #388E3C; --secondary: #2196F3; --danger: #f44336; --bg: #f5f5f5; --card: white; --text: #333; --border: #ddd; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .header { text-align: center; margin-bottom: 30px; padding: 20px; background: var(--card); border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .header h1 { color: var(--primary); font-size: 2.5em; margin-bottom: 10px; }
+        .tabs { display: flex; background: var(--card); border-radius: 12px; overflow: hidden; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .tab { flex: 1; padding: 15px; text-align: center; cursor: pointer; border: none; background: transparent; font-size: 16px; font-weight: 600; color: #666; transition: all 0.3s; position: relative; }
+        .tab:hover { background: rgba(0,0,0,0.05); }
+        .tab.active { color: var(--primary); background: rgba(76, 175, 80, 0.1); }
+        .tab.active::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: var(--primary); }
+        .tab-content { display: none; animation: fadeIn 0.3s ease-in; }
+        .tab-content.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .card { background: var(--card); padding: 25px; border-radius: 12px; margin-bottom: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
+        .card h3 { color: var(--text); margin-bottom: 20px; font-size: 1.3em; display: flex; align-items: center; gap: 10px; }
+        .input-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-weight: 500; color: #555; }
+        input[type="text"], input[type="number"], select { width: 100%; padding: 12px; border: 2px solid var(--border); border-radius: 8px; font-size: 14px; transition: border-color 0.3s; background-color: white; }
+        input[type="text"]:focus, input[type="number"]:focus, select:focus { outline: none; border-color: var(--primary); }
+        .btn { padding: 12px 24px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.3s; margin-right: 10px; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover:not(:disabled) { background: var(--primary-dark); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3); }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-danger:hover { background: #d32f2f; }
+        .btn:disabled { background: #ccc; cursor: not-allowed; transform: none; }
+        .status { display: inline-block; padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; margin-left: 10px; }
+        .status.connected { background: #e8f5e9; color: #2e7d32; }
+        .status.disconnected { background: #ffebee; color: #c62828; }
+        .canvas-container { text-align: center; margin: 20px 0; }
+        #canvas, .webcam-canvas { border: 2px solid var(--border); border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); max-width: 100%; height: auto; }
+        .result-display { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 12px; text-align: center; margin: 20px 0; font-size: 1.8em; font-weight: bold; box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3); }
+        .predictions { background: #f8f9fa; padding: 20px; border-radius: 12px; margin-top: 20px; }
+        .prediction-item { background: white; padding: 15px; margin-bottom: 10px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; transition: transform 0.2s; }
+        .prediction-item:hover { transform: translateX(5px); box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .prediction-bar { height: 8px; background: #e0e0e0; border-radius: 4px; margin-top: 5px; overflow: hidden; }
+        .prediction-fill { height: 100%; background: var(--primary); border-radius: 4px; transition: width 0.3s ease; }
+        .voice-visualizer { height: 60px; background: #263238; border-radius: 12px; margin: 20px 0; display: flex; align-items: center; justify-content: center; gap: 3px; padding: 0 20px; overflow: hidden; }
+        .voice-bar { width: 4px; background: var(--primary); border-radius: 2px; transition: height 0.1s ease; }
+        .info-box { background: #e3f2fd; padding: 20px; border-radius: 8px; border-left: 4px solid var(--secondary); margin-top: 20px; }
+        .info-box h4 { color: var(--secondary); margin-bottom: 10px; }
+        .info-box p { font-size: 14px; line-height: 1.5; color: #555; }
+        /* 토글 스위치 스타일 */
+        .switch { position: relative; display: inline-block; width: 50px; height: 28px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 28px; }
+        .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--primary); }
+        input:checked + .slider:before { transform: translateX(22px); }
+        @media (max-width: 768px) { .container { padding: 10px; } .header h1 { font-size: 1.8em; } .tabs { flex-direction: column; } .btn { width: 100%; margin-right: 0; } }
+    </style>
+</head>
+<body class="p-4">
+    <div class="max-w-4xl w-full mx-auto p-4 md:p-6 bg-white rounded-2xl shadow-lg">
+        
+        <div class="header relative text-center mb-6 p-5 rounded-2xl shadow-md">
+             <a href="index.html" title="메인으로 돌아가기" class="absolute left-4 md:left-6 top-1/2 -translate-y-1/2 p-2 rounded-full hover:bg-gray-100 transition-colors" data-translate-key="go_to_main_title" title-key="go_to_main_title">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                </svg>
+            </a>
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-800" data-translate-key="tm_page_title">🤖 TM All-in-One for MCU</h1>
+            <p class="text-gray-500 mt-2" data-translate-key="tm_page_subtitle"><a href="https://teachablemachine.withgoogle.com/" target="_blank" class="text-blue-600 underline"><b>Teachable Machine</b></a> 통합 인터페이스 - 이미지, 포즈, 음성 인식</p>
+        </div>
+        
+        <div class="tabs rounded-lg overflow-hidden border">
+            <button class="tab active" onclick="switchTab('image')" data-translate-key="tab_image">📷 이미지 인식</button>
+            <button class="tab" onclick="switchTab('pose')" data-translate-key="tab_pose">🏃 포즈 인식</button>
+            <button class="tab" onclick="switchTab('voice')" data-translate-key="tab_voice">🎤 음성 인식</button>
+        </div>
+        
+        <div id="image-tab" class="tab-content active">
+            <div class="card bg-gray-50 p-6 rounded-lg">
+                <h3 class="text-xl font-bold mb-4" data-translate-key="image_model_settings">📷 이미지 모델 설정</h3>
+                <div class="input-group">
+                    <label data-translate-key="tm_model_url_image">Teachable Machine 이미지 모델 URL</label>
+                    <input type="text" id="imageUrl" placeholder="https://teachablemachine.withgoogle.com/models/.../" class="w-full p-2 border rounded">
+                </div>
+                <div class="input-group">
+                    <label data-translate-key="threshold">인식 임계값 (0-100)</label>
+                    <input type="number" id="imageThreshold" value="80" min="0" max="100" class="w-full p-2 border rounded">
+                </div>
+                <button class="btn btn-primary" onclick="loadImageModel()" data-translate-key="load_model">모델 로드</button>
+                <button class="btn btn-primary" onclick="startImage()" id="startImageBtn" disabled data-translate-key="start">시작</button>
+                <button class="btn btn-danger" onclick="stopImage()" id="stopImageBtn" disabled data-translate-key="stop">정지</button>
+            </div>
+            <div class="canvas-container">
+                <div id="image-webcam-container"></div>
+            </div>
+        </div>
+        
+        <div id="pose-tab" class="tab-content">
+            <div class="card bg-gray-50 p-6 rounded-lg">
+                <h3 class="text-xl font-bold mb-4" data-translate-key="pose_model_settings">🏃 포즈 모델 설정</h3>
+                <div class="input-group">
+                    <label data-translate-key="tm_model_url_pose">Teachable Machine 포즈 모델 URL</label>
+                    <input type="text" id="poseUrl" placeholder="https://teachablemachine.withgoogle.com/models/.../" class="w-full p-2 border rounded">
+                </div>
+                <div class="input-group">
+                    <label data-translate-key="threshold">인식 임계값 (0-100)</label>
+                    <input type="number" id="poseThreshold" value="80" min="0" max="100" class="w-full p-2 border rounded">
+                </div>
+                <button class="btn btn-primary" onclick="loadPoseModel()" data-translate-key="load_model">모델 로드</button>
+                <button class="btn btn-primary" onclick="startPose()" id="startPoseBtn" disabled data-translate-key="start">시작</button>
+                <button class="btn btn-danger" onclick="stopPose()" id="stopPoseBtn" disabled data-translate-key="stop">정지</button>
+            </div>
+            <div class="canvas-container">
+                <canvas id="canvas"></canvas>
+            </div>
+        </div>
+        
+        <div id="voice-tab" class="tab-content">
+            <div class="card bg-gray-50 p-6 rounded-lg">
+                <h3 class="text-xl font-bold mb-4" data-translate-key="voice_model_settings">🎤 음성 모델 설정</h3>
+                <div class="input-group">
+                    <label data-translate-key="tm_model_url_voice">Teachable Machine 음성 모델 URL</label>
+                    <input type="text" id="voiceUrl" placeholder="https://teachablemachine.withgoogle.com/models/.../" class="w-full p-2 border rounded">
+                </div>
+                <div class="input-group">
+                    <label data-translate-key="threshold">인식 임계값 (0-100)</label>
+                    <input type="number" id="voiceThreshold" value="75" min="0" max="100" class="w-full p-2 border rounded">
+                </div>
+                <button class="btn btn-primary" onclick="startVoice()" data-translate-key="start_voice">음성 인식 시작</button>
+                <button class="btn btn-danger" onclick="stopVoice()" id="stopVoiceBtn" disabled data-translate-key="stop">정지</button>
+            </div>
+            <div class="voice-visualizer bg-gray-800 rounded-lg p-4">
+                <div class="voice-bar"></div><div class="voice-bar"></div><div class="voice-bar"></div><div class="voice-bar"></div><div class="voice-bar"></div><div class="voice-bar"></div><div class="voice-bar"></div><div class="voice-bar"></div><div class="voice-bar"></div><div class="voice-bar"></div>
+            </div>
+        </div>
+        
+        <div class="card mt-6">
+            <h3 class="text-xl font-bold mb-4" data-translate-key="connection_settings">🔌 연결 설정</h3>
+            
+            <div class="input-group mb-4">
+                <label for="webcam-select" class="text-sm font-medium text-gray-700" data-translate-key="webcam_select">웹캠 선택</label>
+                <select id="webcam-select" class="w-full mt-1 p-2 border border-gray-300 rounded-md"></select>
+            </div>
+
+            <div class="input-group mb-4">
+                <label for="ble-device-type" class="text-sm font-medium text-gray-700" data-translate-key="ble_device_type">블루투스 장치 유형</label>
+                <select id="ble-device-type" class="w-full mt-1 p-2 border border-gray-300 rounded-md">
+                    <option value="microbit" data-translate-key="microbit_device">마이크로비트 (이름으로 검색)</option>
+                    <option value="generic" data-translate-key="generic_uart_device">일반 UART 장치 (Raspberry Pi Pico W, Arduino, ESP32 등)</option>
+                </select>
+            </div>
+            <div class="flex flex-wrap items-center">
+                <button id="connectSerialBtn" class="btn btn-primary" onclick="connectSerial()" data-translate-key="serial_connect">시리얼 연결</button>
+                <button id="disconnectSerialBtn" class="btn btn-danger" disabled onclick="disconnectSerial()" data-translate-key="disconnect">해제</button>
+                <button id="connectBleBtn" class="btn btn-primary" onclick="connectBLE()" data-translate-key="ble_connect">블루투스 연결</button>
+                <button id="disconnectBleBtn" class="btn btn-danger" disabled onclick="disconnectBLE()" data-translate-key="disconnect">해제</button>
+                <span id="connectionStatus" class="status disconnected" data-translate-key="status_disconnected">연결 안됨</span>
+            </div>
+             <div class="mt-4 pt-4 border-t flex items-center justify-between">
+                <div class="flex items-center">
+                    <span class="text-sm font-medium text-gray-700">전송 방식:</span>
+                    <span id="send-mode-status" class="ml-2 text-sm font-bold"></span>
+                </div>
+                <label class="switch">
+                    <input type="checkbox" id="send-once-toggle" checked>
+                    <span class="slider"></span>
+                </label>
+            </div>
+        </div>
+        
+        <div class="result-display bg-blue-600 text-white p-6 rounded-lg text-center text-2xl font-bold shadow-lg" data-translate-key="status_waiting">대기 중...</div>
+        
+        <div class="predictions mt-4"></div>
+        
+        <div class="info-box mt-6">
+            <h4 class="text-lg font-bold" data-translate-key="usage_guide">💡 사용 방법</h4>
+            <ol class="list-decimal list-inside mt-2 space-y-1">
+                <li data-translate-key="guide_tm_1">사용할 인식 모드(이미지/포즈/음성)를 선택하세요.</li>
+                <li data-translate-key="guide_tm_2">Teachable Machine에서 학습한 모델 URL을 입력하세요.</li>
+                <li data-translate-key="guide_tm_3">연결할 장치(시리얼 또는 블루투스)를 선택하고 연결하세요.</li>
+                <li data-translate-key="guide_tm_4">모델을 로드하고 시작 버튼을 누르세요.</li>
+                <li data-translate-key="guide_tm_5">인식된 결과가 자동으로 MCU로 전송됩니다.</li>
+            </ol>
+        </div>
+
+        <div class="card mt-6 p-4 bg-gray-100 rounded-lg">
+            <h3 class="text-lg font-bold mb-3" data-translate-key="developer_info">👨‍💻 개발자 정보</h3>
+            <div class="text-sm text-gray-600 space-y-2">
+                <p>
+                    <strong data-translate-key="developer_name">김석전</strong><span data-translate-key="developer_affiliation_face">, 송도중학교 정보교사 / 인하대학교 겸임교수</span> 📅 Since 2023.04.24 | 📧 alphaco@kakao.com
+                </p>
+                <div class="mt-3 p-3 bg-white rounded border border-gray-200">
+                    <p class="mb-2" data-translate-key="developer_info_tm">WebSerial과 WebBLE를 이용해 티처블머신 인식 결과를 유/무선으로 MCU에 전송하는 웹앱입니다.</p>
+                    <p class="mb-2" data-translate-key="app_description_2">✅ 아두이노, 마이크로비트, ESP32, 라즈베리파이 피코 등 모든 MCU를 사용할 수 있습니다.</p>
+                    <p class="mb-2" data-translate-key="app_description_3">🌐 Chrome, Edge 브라우저에서 테스트 되었습니다.</p>
+                    <p class="mb-2" data-translate-key="developer_info_hardware_note_face">⚙️ 하드웨어는 블록코딩이나 텍스트 코딩을 이용해 사전에 코드 업로드가 필요합니다.</p>
+                    <p class="mb-2" data-translate-key="app_description_5">🚀 인공지능에 다양한 출력장치를 연결하여 AIoT 애플리케이션을 제작해 보세요.</p>
+                    <p class="mt-3 font-medium" data-translate-key="ccl">📜 CCL: BY-NC-ND</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // 전역 변수
+        let currentTab = 'image';
+        let models = { image: null, pose: null, voice: null };
+        let webcams = { image: null, pose: null };
+        let recognizer = null;
+        let isRunning = { image: false, pose: false, voice: false };
+        let port = null;
+        let bleDevice = null;
+        let bleCharacteristic = null;
+        let lastSentClass = "";
+        let animationId = null;
+        let poseCtx = null;
+        let selectedDeviceId = null; 
+        let sendOnce = true;
+
+        const ui = {
+            connectSerialBtn: null,
+            disconnectSerialBtn: null,
+            connectBleBtn: null,
+            disconnectBleBtn: null,
+            sendOnceToggle: null,
+            sendModeStatus: null
+        };
+        
+        // 탭 전환
+        function switchTab(tab) {
+            if (isRunning.image && tab !== 'image') stopImage();
+            if (isRunning.pose && tab !== 'pose') stopPose();
+            if (isRunning.voice && tab !== 'voice') stopVoice();
+            currentTab = tab;
+            lastSentClass = ""; 
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            const tabIndex = tab === 'image' ? 0 : tab === 'pose' ? 1 : 2;
+            document.querySelectorAll('.tab')[tabIndex].classList.add('active');
+            document.getElementById(`${tab}-tab`).classList.add('active');
+        }
+        
+        // ==================== 웹캠 관리 ====================
+        async function setupWebcamSelector() {
+            const webcamSelect = document.getElementById('webcam-select');
+            webcamSelect.innerHTML = ''; 
+
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter(device => device.kind === 'videoinput');
+
+                if (videoDevices.length === 0) {
+                    const option = document.createElement('option');
+                    option.textContent = '웹캠을 찾을 수 없습니다.';
+                    webcamSelect.appendChild(option);
+                    return;
+                }
+                
+                videoDevices.forEach((device, index) => {
+                    const option = document.createElement('option');
+                    option.value = device.deviceId;
+                    option.textContent = device.label || `Webcam ${index + 1}`;
+                    webcamSelect.appendChild(option);
+                });
+
+                selectedDeviceId = webcamSelect.value;
+
+                webcamSelect.addEventListener('change', (e) => {
+                    selectedDeviceId = e.target.value;
+                    alert(`웹캠이 '${e.target.options[e.target.selectedIndex].text}'(으)로 변경되었습니다. 진행 중인 작업을 중지합니다.`);
+                    
+                    if (isRunning.image) stopImage();
+                    if (isRunning.pose) stopPose();
+                });
+
+            } catch (error) {
+                console.error("웹캠 목록을 가져오는 중 오류 발생:", error);
+                const option = document.createElement('option');
+                option.textContent = '웹캠 접근 권한이 필요합니다.';
+                webcamSelect.appendChild(option);
+            }
+        }
+
+        // ==================== 공통 함수 ====================
+        
+        async function sendToMCU(data) {
+            if (sendOnce) {
+                if (data === lastSentClass) return;
+            }
+
+            lastSentClass = data;
+            document.querySelector('.result-display').textContent = `인식 결과: ${data}`;
+            const dataToSend = data + '\n';
+            if (port?.writable) {
+                const writer = port.writable.getWriter();
+                await writer.write(new TextEncoder().encode(dataToSend));
+                writer.releaseLock();
+            }
+            if (bleCharacteristic) {
+                try {
+                    await bleCharacteristic.writeValue(new TextEncoder().encode(dataToSend));
+                } catch (error) { console.error('BLE 전송 오류:', error); }
+            }
+        }
+        
+        function displayPredictions(predictions) {
+            const container = document.querySelector('.predictions');
+            container.innerHTML = predictions.map(p => `
+                <div class="prediction-item bg-white p-3 rounded-lg mb-2 shadow-sm">
+                    <div class="flex justify-between font-semibold">
+                        <span>${p.className}</span>
+                        <span>${(p.probability * 100).toFixed(1)}%</span>
+                    </div>
+                    <div class="prediction-bar bg-gray-200 rounded-full h-2 mt-1">
+                        <div class="prediction-fill bg-green-500 h-2 rounded-full" style="width: ${p.probability * 100}%"></div>
+                    </div>
+                </div>`).join('');
+        }
+        
+        // ==================== 이미지 인식 ====================
+        
+        async function loadImageModel() {
+            const url = document.getElementById('imageUrl').value;
+            if (!url) return alert('이미지 모델 URL을 입력하세요.');
+            try {
+                const modelURL = url + "model.json";
+                const metadataURL = url + "metadata.json";
+                models.image = await tmImage.load(modelURL, metadataURL);
+                document.getElementById('startImageBtn').disabled = false;
+                alert('이미지 모델 로딩 완료!');
+            } catch (error) { alert(`모델 로딩 실패: ${error.message}`); }
+        }
+        
+        async function startImage() {
+            if (!models.image) return;
+            webcams.image = new tmImage.Webcam(400, 400, true);
+            await webcams.image.setup({ deviceId: selectedDeviceId });
+            await webcams.image.play();
+            const imageWebcamContainer = document.getElementById("image-webcam-container");
+            imageWebcamContainer.innerHTML = '';
+            imageWebcamContainer.appendChild(webcams.image.canvas);
+            webcams.image.canvas.className = 'webcam-canvas';
+            isRunning.image = true;
+            document.getElementById('startImageBtn').disabled = true;
+            document.getElementById('stopImageBtn').disabled = false;
+            loopImage();
+        }
+        
+        function stopImage() {
+            isRunning.image = false;
+            if (animationId) { window.cancelAnimationFrame(animationId); animationId = null; }
+            if (webcams.image) { webcams.image.stop(); document.getElementById("image-webcam-container").innerHTML = ''; }
+            document.getElementById('startImageBtn').disabled = false;
+            document.getElementById('stopImageBtn').disabled = true;
+        }
+        
+        async function loopImage() {
+            if (!isRunning.image) return;
+            webcams.image.update();
+            const prediction = await models.image.predict(webcams.image.canvas);
+            displayPredictions(prediction);
+            const maxPred = prediction.reduce((max, p) => p.probability > max.probability ? p : max);
+            const threshold = parseInt(document.getElementById('imageThreshold').value);
+            if (maxPred.probability * 100 > threshold) { await sendToMCU(maxPred.className); }
+            animationId = window.requestAnimationFrame(loopImage);
+        }
+        
+        // ==================== 포즈 인식 ====================
+        
+        async function loadPoseModel() {
+            const url = document.getElementById('poseUrl').value;
+            if (!url) return alert('포즈 모델 URL을 입력하세요.');
+            try {
+                const modelURL = url + "model.json";
+                const metadataURL = url + "metadata.json";
+                models.pose = await tmPose.load(modelURL, metadataURL);
+                document.getElementById('startPoseBtn').disabled = false;
+                alert('포즈 모델 로딩 완료!');
+            } catch (error) { alert(`모델 로딩 실패: ${error.message}`); }
+        }
+        
+        async function startPose() {
+            if (!models.pose) return;
+            const canvas = document.getElementById('canvas');
+            poseCtx = canvas.getContext('2d');
+            canvas.width = 400; canvas.height = 400;
+            webcams.pose = new tmPose.Webcam(400, 400, true);
+            await webcams.pose.setup({ deviceId: selectedDeviceId });
+            await webcams.pose.play();
+            isRunning.pose = true;
+            document.getElementById('startPoseBtn').disabled = true;
+            document.getElementById('stopPoseBtn').disabled = false;
+            animationId = window.requestAnimationFrame(loopPose);
+        }
+        
+        async function loopPose() {
+            if (!isRunning.pose) return;
+            webcams.pose.update();
+            await predictPose();
+            animationId = window.requestAnimationFrame(loopPose);
+        }
+
+        async function predictPose() {
+            const { pose, posenetOutput } = await models.pose.estimatePose(webcams.pose.canvas);
+            const prediction = await models.pose.predict(posenetOutput);
+            displayPredictions(prediction);
+            const maxPred = prediction.reduce((max, p) => p.probability > max.probability ? p : max);
+            const threshold = parseInt(document.getElementById('poseThreshold').value);
+            if (maxPred.probability * 100 > threshold) { await sendToMCU(maxPred.className); }
+            drawPose(pose);
+        }
+
+        function drawPose(pose) {
+            if (webcams.pose.canvas) {
+                poseCtx.drawImage(webcams.pose.canvas, 0, 0);
+                if (pose) {
+                    const minPartConfidence = 0.5;
+                    tmPose.drawKeypoints(pose.keypoints, minPartConfidence, poseCtx);
+                    tmPose.drawSkeleton(pose.keypoints, minPartConfidence, poseCtx);
+                }
+            }
+        }
+        
+        function stopPose() {
+            isRunning.pose = false;
+            if (animationId) { window.cancelAnimationFrame(animationId); animationId = null; }
+            if (webcams.pose) { webcams.pose.stop(); poseCtx.clearRect(0, 0, poseCtx.canvas.width, poseCtx.canvas.height); }
+            document.getElementById('startPoseBtn').disabled = false;
+            document.getElementById('stopPoseBtn').disabled = true;
+        }
+        
+        // ==================== 음성 인식 ====================
+        
+        async function startVoice() {
+            const url = document.getElementById('voiceUrl').value;
+            if (!url) return alert('음성 모델 URL을 입력하세요.');
+            try {
+                const modelURL = url + "model.json";
+                const metadataURL = url + "metadata.json";
+                recognizer = speechCommands.create("BROWSER_FFT", undefined, modelURL, metadataURL);
+                await recognizer.ensureModelLoaded();
+                isRunning.voice = true;
+                document.getElementById('stopVoiceBtn').disabled = false;
+                alert('음성 인식을 시작합니다.');
+                recognizer.listen(result => {
+                    if (!isRunning.voice) return;
+                    const labels = recognizer.wordLabels();
+                    const scores = result.scores;
+                    const predictions = labels.map((label, i) => ({ className: label, probability: scores[i] })).sort((a, b) => b.probability - a.probability);
+                    displayPredictions(predictions.slice(0, 5));
+                    const threshold = parseInt(document.getElementById('voiceThreshold').value) / 100;
+                    const maxPred = predictions[0];
+                    if (maxPred.probability > threshold) {
+                        const currentClass = maxPred.className;
+                        const isBackgroundNoise = currentClass === '_background_noise_' || currentClass === '배경 소음';
+                        if (isBackgroundNoise) {
+                            if (currentClass !== lastSentClass) {
+                                document.querySelector('.result-display').textContent = `인식 결과: ${currentClass}`;
+                                lastSentClass = currentClass;
+                            }
+                        } else { sendToMCU(currentClass); }
+                    }
+                }, { includeSpectrogram: true, probabilityThreshold: 0.75, invokeCallbackOnNoiseAndUnknown: true, overlapFactor: 0.50 });
+            } catch (error) { alert(`모델 로딩 실패: ${error.message}`); }
+        }
+        
+        function stopVoice() {
+            isRunning.voice = false;
+            if (recognizer?.isListening()) { recognizer.stopListening(); }
+            document.getElementById('stopVoiceBtn').disabled = true;
+        }
+        
+        // ==================== 연결 관리 ====================
+        
+        async function connectSerial() {
+            try {
+                port = await navigator.serial.requestPort();
+                await port.open({ baudRate: 9600 });
+                updateConnectionStatus();
+            } catch (error) { if (error.name !== 'NotFoundError') alert(`시리얼 연결 실패: ${error.message}`); }
+        }
+        
+        async function disconnectSerial() {
+            if (port) { 
+                try {
+                    await port.close(); 
+                } catch (error) {
+                    console.error("포트 닫기 오류:", error);
+                } finally {
+                    port = null; 
+                    updateConnectionStatus();
+                }
+            }
+        }
+        
+        async function connectBLE() {
+            const deviceType = document.getElementById('ble-device-type').value;
+            let requestOptions = deviceType === 'microbit'
+                ? { filters: [{ namePrefix: "BBC micro:bit" }], optionalServices: ['6e400001-b5a3-f393-e0a9-e50e24dcca9e'] }
+                : { filters: [{ services: ['6e400001-b5a3-f393-e0a9-e50e24dcca9e'] }] };
+
+            try {
+                bleDevice = await navigator.bluetooth.requestDevice(requestOptions);
+                bleDevice.addEventListener('gattserverdisconnected', () => {
+                    bleDevice = null;
+                    bleCharacteristic = null;
+                    updateConnectionStatus();
+                });
+                const server = await bleDevice.gatt.connect();
+                const service = await server.getPrimaryService('6e400001-b5a3-f393-e0a9-e50e24dcca9e');
+                bleCharacteristic = await service.getCharacteristic('6e400002-b5a3-f393-e0a9-e50e24dcca9e');
+                updateConnectionStatus();
+                alert('블루투스 연결 성공!');
+            } catch (error) {
+                alert(`블루투스 연결 실패: ${error.message}`);
+                updateConnectionStatus();
+            }
+        }
+        
+        function disconnectBLE() {
+            if (bleDevice?.gatt.connected) {
+                bleDevice.gatt.disconnect();
+            }
+        }
+        
+        function updateConnectionStatus() {
+            const statusEl = document.getElementById('connectionStatus');
+            const serialConnected = !!port;
+            const bleConnected = !!(bleDevice?.gatt?.connected);
+
+            let statusText = '연결 안됨';
+            if (serialConnected) statusText = '시리얼 연결됨';
+            else if (bleConnected) statusText = '블루투스 연결됨';
+            
+            statusEl.textContent = statusText;
+            statusEl.className = `status ${serialConnected || bleConnected ? 'connected' : 'disconnected'}`;
+
+            ui.connectSerialBtn.disabled = serialConnected;
+            ui.disconnectSerialBtn.disabled = !serialConnected;
+            ui.connectBleBtn.disabled = bleConnected;
+            ui.disconnectBleBtn.disabled = !bleConnected;
+        }
+
+        function updateSendModeStatus() {
+            if (sendOnce) {
+                ui.sendModeStatus.textContent = '1회 전송 (once)';
+                ui.sendModeStatus.className = 'ml-2 text-sm font-bold text-green-600';
+            } else {
+                ui.sendModeStatus.textContent = '연속 전송 (continuously)';
+                ui.sendModeStatus.className = 'ml-2 text-sm font-bold text-blue-600';
+            }
+        }
+
+        window.addEventListener('load', () => {
+            ui.connectSerialBtn = document.getElementById('connectSerialBtn');
+            ui.disconnectSerialBtn = document.getElementById('disconnectSerialBtn');
+            ui.connectBleBtn = document.querySelector('button[onclick="connectBLE()"]');
+            ui.disconnectBleBtn = document.querySelector('button[onclick="disconnectBLE()"]');
+            ui.sendOnceToggle = document.getElementById('send-once-toggle');
+            ui.sendModeStatus = document.getElementById('send-mode-status');
+            
+            setupWebcamSelector();
+            updateConnectionStatus();
+            updateSendModeStatus();
+            
+            ui.sendOnceToggle.addEventListener('change', (e) => {
+                sendOnce = e.target.checked;
+                updateSendModeStatus();
+            });
+        });
+
+        document.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+            alert('소스 코드 복사는 허용되지 않습니다.');
+        });
+    </script>
+</body>
+</html>

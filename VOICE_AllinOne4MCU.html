@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title data-translate-key="voice_page_title">음성인식 서비스 for MCU</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Noto Sans KR', sans-serif; background-color: #f5f5f5; }
+        .btn { padding: 10px 20px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.3s; margin-right: 10px; }
+        .btn:disabled { background-color: #bdc3c7; cursor: not-allowed; }
+        .btn-primary { background: #e74c3c; color: white; } 
+        .btn-primary:hover:not(:disabled) { background: #c0392b; }
+        .btn-danger { background: #1abc9c; color: white; }
+        .btn-danger:hover:not(:disabled) { background: #16a085; }
+        .status { display: inline-block; padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; margin-left: 10px; }
+        .status.connected { background: #d4efdf; color: #1e8449; }
+        .status.disconnected { background: #f9ebea; color: #b03a2e; }
+        .status.listening { background: #d6eaf8; color: #1a5276; }
+        .highlight { border: 2px solid #e74c3c !important; box-shadow: 0 0 10px rgba(231, 76, 60, 0.5); transform: scale(1.01); }
+        
+        /* Toggle Switch 스타일 추가 */
+        .switch { position: relative; display: inline-block; width: 50px; height: 28px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 28px; }
+        .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: #e74c3c; } /* VOICE 앱의 Primary color */
+        input:checked + .slider:before { transform: translateX(22px); }
+    </style>
+</head>
+<body class="p-4">
+    <div class="max-w-4xl w-full mx-auto p-4 md:p-6 bg-white rounded-2xl shadow-lg">
+        <header class="relative text-center mb-6 p-5 rounded-2xl shadow-md">
+            <a href="index.html" title="메인으로 돌아가기" class="absolute left-4 md:left-6 top-1/2 -translate-y-1/2 p-2 rounded-full hover:bg-gray-100 transition-colors" data-translate-key="go_to_main_title" title-key="go_to_main_title">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                </svg>
+            </a>
+            <h1 class="text-3xl md:text-4xl font-bold text-red-600" data-translate-key="voice_page_title">🎤 음성인식 서비스</h1>
+            <p class="text-gray-500 mt-2" data-translate-key="voice_page_subtitle">Google Web Speech API를 사용하여 음성으로 MCU를 제어합니다.</p>
+        </header>
+
+        <main>
+            <div class="card bg-gray-50 p-6 rounded-lg mb-6">
+                <h3 class="text-xl font-bold mb-4" data-translate-key="voice_control_settings">음성인식 제어</h3>
+                <div class="mb-4">
+                    <label for="languageSelect" class="block text-sm font-medium mb-2" data-translate-key="language_select">언어 선택</label>
+                    <select id="languageSelect" class="w-full p-2 border border-gray-300 rounded-lg">
+                        <option value="ko-KR">🇰🇷 한국어</option>
+                        <option value="en-US">🇺🇸 English (US)</option>
+                        <option value="ja-JP">🇯🇵 日本語</option>
+                        <option value="zh-CN">🇨🇳 中文(简体)</option>
+                        <option value="vi-VN">🇻🇳 Tiếng Việt</option>
+                        <option value="ms-MY">🇲🇾 Bahasa Malaysia</option>
+                        <option value="id-ID">🇮🇩 Bahasa Indonesia</option>
+                        <option value="th-TH">🇹🇭 ไทย</option>
+                        <option value="es-ES">🇪🇸 Español</option>
+                        <option value="fr-FR">🇫🇷 Français</option>
+                        <option value="de-DE">🇩🇪 Deutsch</option>
+                        <option value="it-IT">🇮🇹 Italiano</option>
+                        <option value="pt-PT">🇵🇹 Português</option>
+                        <option value="nl-NL">🇳🇱 Nederlands</option>
+                        <option value="ru-RU">🇷🇺 Русский</option>
+                        <option value="ar-SA">🇸🇦 العربية</option>
+                    </select>
+                </div>
+                <div class="flex gap-3">
+                    <button id="start-btn" class="btn btn-primary flex-1" data-translate-key="start">인식 시작</button>
+                    <button id="stop-btn" class="btn btn-danger flex-1" disabled data-translate-key="stop">인식 정지</button>
+                    </div>
+                <div id="recognition-status" class="status disconnected text-center w-full mt-4 p-2" data-translate-key="status_voice_waiting">인식 대기중</div>
+                <div class="mt-4 p-3 bg-white rounded-lg border text-center">
+                    <p class="text-sm text-gray-500" data-translate-key="final_transcript_label">최종 인식된 문장:</p>
+                    <p id="final-transcript" class="text-lg font-semibold text-gray-800 min-h-[28px]">...</p>
+                </div>
+            </div>
+
+            <div class="card bg-gray-50 p-6 rounded-lg mb-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-bold" data-translate-key="command_settings">명령어/전송 값 설정 (최대 20개)</h3>
+                    <button id="add-command-btn" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-bold" data-translate-key="add_command">+</button>
+                </div>
+                <div id="command-list" class="space-y-3">
+                </div>
+            </div>
+
+            <div class="card bg-gray-50 p-6 rounded-lg">
+                <h3 class="text-xl font-bold mb-4" data-translate-key="connection_settings">🔌 연결 설정</h3>
+                <div class="input-group mb-4">
+                    <label for="ble-device-type" class="text-sm font-medium text-gray-700" data-translate-key="ble_device_type">블루투스 장치 유형</label>
+                    <select id="ble-device-type" class="w-full mt-1 p-2 border border-gray-300 rounded-md">
+                        <option value="microbit" data-translate-key="microbit_device">마이크로비트 (이름으로 검색)</option>
+                        <option value="generic" data-translate-key="generic_uart_device">일반 UART 장치 (Raspberry Pi Pico W, Arduino, ESP32 등)</option>
+                    </select>
+                </div>
+                <div class="flex flex-wrap items-center">
+                    <button id="connectSerialBtn" class="btn btn-primary" onclick="connectSerial()" data-translate-key="serial_connect">시리얼 연결</button>
+                    <button id="disconnectSerialBtn" class="btn btn-danger" disabled onclick="disconnectSerial()" data-translate-key="disconnect">해제</button>
+                    <button id="connectBleBtn" class="btn btn-primary" onclick="connectBLE()" data-translate-key="ble_connect">블루투스 연결</button>
+                    <button id="disconnectBleBtn" class="btn btn-danger" disabled onclick="disconnectBLE()" data-translate-key="disconnect">해제</button>
+                    <span id="connectionStatus" class="status disconnected" data-translate-key="status_disconnected">연결 안됨</span>
+                </div>
+                <div class="mt-4 pt-4 border-t flex items-center justify-between">
+                    <div class="flex items-center">
+                        <span class="text-sm font-medium text-gray-700">전송 방식:</span>
+                        <span id="send-mode-status" class="ml-2 text-sm font-bold"></span>
+                    </div>
+                    <label class="switch">
+                        <input type="checkbox" id="send-once-toggle" checked>
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="card bg-gray-50 p-6 rounded-lg mt-6">
+                <h3 class="text-xl font-bold mb-4" data-translate-key="usage_guide">💡 사용 방법</h3>
+                <ol class="list-decimal list-inside space-y-2 text-gray-700">
+                    <li data-translate-key="guide_voice_1">사용할 언어를 선택합니다.</li>
+                    <li data-translate-key="guide_voice_2">
+                        '+' 버튼을 눌러 인식할 단어와 MCU로 보낼 값을 설정합니다. (최대 20개)
+                    </li>
+                    <li data-translate-key="guide_voice_3">시리얼 또는 블루투스로 제어할 장치를 연결하고, 전송 방식을 선택합니다.</li>
+                    <li data-translate-key="guide_voice_4">'인식 시작' 버튼을 누르고 설정한 단어를 포함하여 말합니다.</li>
+                    <li data-translate-key="guide_voice_5">단어가 인식되면 해당 칸이 붉게 강조되며 설정된 값이 자동으로 전송됩니다.</li>
+                </ol>
+            </div>
+
+            <div class="card mt-6 p-4 bg-gray-100 rounded-lg">
+                <h3 class="text-lg font-bold mb-3" data-translate-key="developer_info">👨‍💻 개발자 정보</h3>
+                <div class="text-sm text-gray-600 space-y-2">
+                    <p>
+                        <strong data-translate-key="developer_name">김석전</strong><span data-translate-key="developer_affiliation_face">, 송도중학교 정보교사 / 인하대학교 겸임교수</span> 📅 Since 2023.04.24 | 📧 alphaco@kakao.com
+                    </p>
+                    <div class="mt-3 p-3 bg-white rounded border border-gray-200">
+                        <p class="mb-2" data-translate-key="developer_info_voice">WebSerial과 WebBLE를 이용해 음성 인식 결과를 유/무선으로 MCU에 전송하는 웹앱입니다.</p>
+                        <p class="mb-2" data-translate-key="app_description_2">✅ 아두이노, 마이크로비트, ESP32, 라즈베리파이 피코 등 모든 MCU를 사용할 수 있습니다.</p>
+                        <p class="mb-2" data-translate-key="app_description_3">🌐 Chrome, Edge 브라우저에서 테스트 되었습니다.</p>
+                        <p class="mb-2" data-translate-key="developer_info_hardware_note_face">⚙️ 하드웨어는 블록코딩이나 텍스트 코딩을 이용해 사전에 코드 업로드가 필요합니다.</p>
+                        <p class="mb-2" data-translate-key="app_description_5">🚀 인공지능에 다양한 출력장치를 연결하여 AIoT 애플리케이션을 제작해 보세요.</p>
+                        <p class="mt-3 font-medium" data-translate-key="ccl">📜 CCL: BY-NC-ND</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // 우클릭 방지
+        document.addEventListener('contextmenu', event => event.preventDefault());
+        let port = null;
+        let bleDevice = null;
+        let bleCharacteristic = null;
+        let recognition = null;
+        let sendOnce = true;
+        let lastSentCommand = null;
+        
+        // 버튼 DOM 요소를 저장할 전역 변수
+        let connectSerialBtn, disconnectSerialBtn, connectBleBtn, disconnectBleBtn;
+
+        // --- 연결 관리 ---
+        async function sendToMCU(data) {
+            const dataToSend = data + '\n';
+            if (port?.writable) {
+                try {
+                    const writer = port.writable.getWriter();
+                    await writer.write(new TextEncoder().encode(dataToSend));
+                    writer.releaseLock();
+                } catch(e) { console.error("Serial send error:", e); }
+            }
+            if (bleCharacteristic) {
+                try {
+                    await bleCharacteristic.writeValue(new TextEncoder().encode(dataToSend));
+                } catch (error) { console.error('BLE send error:', error); }
+            }
+            console.log(`MCU Sent: ${dataToSend.trim()}`);
+        }
+
+        async function connectSerial() {
+            try {
+                port = await navigator.serial.requestPort();
+                await port.open({ baudRate: 9600 });
+                updateConnectionStatus();
+            } catch (error) { 
+                if (error.name !== 'NotFoundError') alert(`시리얼 연결 실패: ${error.message}`);
+            }
+        }
+        
+        async function disconnectSerial() {
+            if (port) { 
+                try {
+                    await port.close(); 
+                } catch(e) { console.error("Port close error:", e); }
+                finally {
+                    port = null; 
+                    updateConnectionStatus();
+                }
+            }
+        }
+        
+        async function connectBLE() {
+            const deviceType = document.getElementById('ble-device-type').value;
+            const options = deviceType === 'microbit'
+                ? { filters: [{ namePrefix: "BBC micro:bit" }], optionalServices: ['6e400001-b5a3-f393-e0a9-e50e24dcca9e'] }
+                : { filters: [{ services: ['6e400001-b5a3-f393-e0a9-e50e24dcca9e'] }] };
+
+            try {
+                bleDevice = await navigator.bluetooth.requestDevice(options);
+                bleDevice.addEventListener('gattserverdisconnected', () => {
+                    bleDevice = null;
+                    bleCharacteristic = null;
+                    updateConnectionStatus();
+                });
+                const server = await bleDevice.gatt.connect();
+                const service = await server.getPrimaryService('6e400001-b5a3-f393-e0a9-e50e24dcca9e');
+                bleCharacteristic = await service.getCharacteristic('6e400002-b5a3-f393-e0a9-e50e24dcca9e');
+                updateConnectionStatus();
+                alert('블루투스 연결 성공!');
+            } catch (error) {
+                alert(`블루투스 연결 실패: ${error.message}`);
+                updateConnectionStatus();
+            }
+        }
+        
+        function disconnectBLE() {
+            if (bleDevice?.gatt.connected) {
+                bleDevice.gatt.disconnect();
+            }
+        }
+        
+        function updateConnectionStatus() {
+            const statusEl = document.getElementById('connectionStatus');
+            const serialConnected = !!port;
+            const bleConnected = !!(bleDevice?.gatt?.connected);
+
+            if (serialConnected) {
+                statusEl.textContent = '시리얼 연결됨';
+                statusEl.className = 'status connected';
+            } else if (bleConnected) {
+                statusEl.textContent = '블루투스 연결됨';
+                statusEl.className = 'status connected';
+            } else {
+                statusEl.textContent = '연결 안됨';
+                statusEl.className = 'status disconnected';
+            }
+
+            connectSerialBtn.disabled = serialConnected;
+            disconnectSerialBtn.disabled = !serialConnected;
+            connectBleBtn.disabled = bleConnected;
+            disconnectBleBtn.disabled = !bleConnected;
+        }
+
+        // --- 음성 명령 앱 로직 ---
+        function setupVoiceRecognition() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                alert("이 브라우저는 음성 인식을 지원하지 않습니다. Chrome 브라우저를 사용해주세요.");
+                return false;
+            }
+            recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = false;
+            recognition.lang = document.getElementById('languageSelect').value;
+
+            document.getElementById('languageSelect').onchange = (e) => {
+                if(recognition) recognition.lang = e.target.value;
+            };
+
+            recognition.onstart = () => {
+                updateRecognitionStatus(true, '음성 인식 중...');
+                lastSentCommand = null;
+            };
+            recognition.onend = () => updateRecognitionStatus(false, '인식 대기중');
+            recognition.onerror = (e) => {
+                console.error('Voice recognition error:', e.error);
+                updateRecognitionStatus(false, '인식 오류');
+            };
+            recognition.onresult = processCommand;
+            return true;
+        }
+        
+        function updateRecognitionStatus(isListening, message) {
+            document.getElementById('start-btn').disabled = isListening;
+            document.getElementById('stop-btn').disabled = !isListening;
+            const statusEl = document.getElementById('recognition-status');
+            statusEl.textContent = message;
+            statusEl.className = `status text-center w-full mt-4 p-2 ${isListening ? 'listening' : 'disconnected'}`;
+        }
+
+        function processCommand(event) {
+            const transcript = event.results[event.results.length - 1][0].transcript.trim();
+            document.getElementById('final-transcript').textContent = transcript;
+            console.log(`[음성인식] 최종 문장: "${transcript}"`); // 로그 추가
+            
+            document.querySelectorAll('.command-row').forEach(row => row.classList.remove('highlight'));
+            
+            const commandRows = document.querySelectorAll('.command-row');
+            let commandFound = false;
+            for (const row of commandRows) {
+                const commandInput = row.querySelector('.command-word').value.trim();
+                const valueInput = row.querySelector('.command-value').value.trim();
+
+                if (commandInput && transcript.includes(commandInput)) {
+                    console.log(`[명령어 매칭] "${commandInput}" 발견!`); // 로그 추가
+                    row.classList.add('highlight');
+                    const valueToSend = valueInput || '0';
+                    
+                    if (sendOnce) {
+                        if (commandInput !== lastSentCommand) {
+                            console.log(`[전송] 1회 전송 모드: 새로운 명령어 "${commandInput}"`); // 로그 추가
+                            sendToMCU(valueToSend);
+                            lastSentCommand = commandInput;
+                        } else {
+                            console.log(`[전송] 1회 전송 모드: 중복 명령어 "${commandInput}". 전송 안함.`); // 로그 추가
+                        }
+                    } else {
+                        console.log(`[전송] 연속 전송 모드`); // 로그 추가
+                        sendToMCU(valueToSend);
+                    }
+                    commandFound = true;
+                    break; 
+                }
+            }
+            if (!commandFound) {
+                console.log("[명령어 매칭] 일치하는 명령어를 찾지 못함."); // 로그 추가
+                lastSentCommand = null;
+            }
+        }
+
+        // --- 동적 UI 관리 ---
+        function setupCommandUI() {
+            const commandList = document.getElementById('command-list');
+            
+            document.getElementById('add-command-btn').onclick = addCommandRow;
+
+            commandList.addEventListener('click', (e) => {
+                if (e.target && e.target.classList.contains('remove-btn')) {
+                    e.target.closest('.command-row').remove();
+                }
+            });
+            addCommandRow();
+            addCommandRow();
+        }
+        
+        function addCommandRow() {
+            const commandList = document.getElementById('command-list');
+            if (commandList.children.length >= 20) {
+                alert('명령어는 최대 20개까지 추가할 수 있습니다.');
+                return;
+            }
+            const newRow = document.createElement('div');
+            newRow.className = 'command-row flex items-center space-x-2 p-2 border border-gray-200 rounded-lg transition-all';
+            newRow.innerHTML = `
+                <input type="text" class="command-word flex-1 p-2 border border-gray-300 rounded-md" placeholder="인식할 단어 (예: 불 켜)">
+                <input type="text" class="command-value w-28 p-2 border border-gray-300 rounded-md" placeholder="전송 값 (예: 1)">
+                <button class="remove-btn px-3 py-1 bg-red-500 text-white rounded-lg hover:bg-red-600 font-bold">-</button>
+            `;
+            commandList.appendChild(newRow);
+        }
+
+        function updateSendModeStatus() {
+            const statusEl = document.getElementById('send-mode-status');
+            if (sendOnce) {
+                statusEl.textContent = '1회 전송 (once)';
+                statusEl.className = 'ml-2 text-sm font-bold text-green-600';
+            } else {
+                statusEl.textContent = '연속 전송 (continuously)';
+                statusEl.className = 'ml-2 text-sm font-bold text-blue-600';
+            }
+        }
+
+        // --- 앱 초기화 ---
+        document.addEventListener('DOMContentLoaded', () => {
+            connectSerialBtn = document.getElementById('connectSerialBtn');
+            disconnectSerialBtn = document.getElementById('disconnectSerialBtn');
+            connectBleBtn = document.getElementById('connectBleBtn');
+            disconnectBleBtn = document.getElementById('disconnectBleBtn');
+            
+            updateConnectionStatus(); // 페이지 로드 시 버튼 상태 초기화
+
+            if (typeof setLanguage === 'function') { setLanguage(); }
+            if (setupVoiceRecognition()) {
+                document.getElementById('start-btn').onclick = () => recognition.start();
+                document.getElementById('stop-btn').onclick = () => recognition.stop();
+            }
+            setupCommandUI();
+
+            const sendOnceToggle = document.getElementById('send-once-toggle');
+            sendOnceToggle.addEventListener('change', (e) => {
+                sendOnce = e.target.checked;
+                updateSendModeStatus();
+                lastSentCommand = null;
+            });
+            updateSendModeStatus();
+        });
+    </script>
+</body>
+</html>

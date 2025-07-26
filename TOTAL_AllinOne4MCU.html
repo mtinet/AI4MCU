@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>다양한 인식 서비스</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root { 
+            --primary: #FF9800; /* Main Orange Color */
+            --primary-dark: #F57C00; /* Darker Orange for Hover */
+            --danger: #f44336; 
+            --info: #2196F3; 
+            --bg: #f0f2f5; 
+            --card: white; 
+            --text: #333; 
+            --border: #ddd; 
+        }
+        body { font-family: 'Noto Sans KR', sans-serif; background-color: var(--bg); }
+        
+        /* Tab Styles */
+        .tab { flex: 1; padding: 15px; text-align: center; cursor: pointer; border: none; background: transparent; font-size: 14px; md:font-size: 16px; font-weight: 600; color: #666; transition: all 0.3s; position: relative; text-decoration: none; }
+        .tab:hover { background: rgba(0,0,0,0.05); }
+        .tab.active { color: var(--primary); background: rgba(255, 152, 0, 0.1); }
+        .tab.active::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: var(--primary); }
+        .tab-content { display: none; animation: fadeIn 0.3s ease-in; }
+        .tab-content.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Original Button & Other Styles */
+        .btn { padding: 10px 20px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.3s; margin-right: 10px; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .btn:disabled { background-color: #9ca3af; cursor: not-allowed; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover:not(:disabled) { background: var(--primary-dark); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(255, 152, 0, 0.3); }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-danger:hover { background: #d32f2f; }
+        .btn-info { background: var(--info); color: white; }
+        .btn-info:hover { background: #1976D2; }
+        .status { display: inline-block; padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; margin-left: 10px; }
+        .status.connected { background: #e8f5e9; color: #2e7d32; }
+        .status.disconnected { background: #ffebee; color: #c62828; }
+        #canvas-container { position: relative; width: 100%; max-width: 640px; aspect-ratio: 4 / 3; }
+        #video, #canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        .loader { border: 5px solid #f3f3f3; border-top: 5px solid var(--primary); border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .input-box { border: 1px solid var(--border); padding: 10px; border-radius: 8px; width:100%; }
+        .user-list-item { background: #FFF3E0; padding: 8px 12px; border-radius: 20px; font-weight: 500; display: flex; align-items: center; justify-content: space-between; }
+        .user-list-item button { background: var(--danger); color: white; border-radius: 50%; width: 24px; height: 24px; line-height: 24px; text-align: center; border:none; cursor:pointer; }
+        .switch { position: relative; display: inline-block; width: 50px; height: 28px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 28px; }
+        .slider:before { position: absolute; content: ""; height: 20px; width: 20px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--primary); }
+        input:checked + .slider:before { transform: translateX(22px); }
+    </style>
+</head>
+<body class="p-4">
+    <div class="max-w-4xl w-full mx-auto p-4 md:p-6 bg-white rounded-2xl shadow-lg">
+        <header class="relative text-center mb-6 p-5 rounded-2xl shadow-md bg-white">
+            <a href="index.html" title="메인으로 돌아가기" class="absolute left-4 md:left-6 top-1/2 -translate-y-1/2 p-2 rounded-full hover:bg-gray-100 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                </svg>
+            </a>
+            <h1 class="text-3xl md:text-4xl font-bold" style="color: var(--primary);">🎨 다양한 인식 서비스</h1>
+            <p class="text-gray-500 mt-2">다양한 AI 모델을 활용하여 MCU를 제어합니다.</p>
+        </header>
+        
+        <div class="w-full max-w-4xl mx-auto mb-6">
+             <div class="tabs rounded-lg overflow-hidden border flex flex-wrap">
+                <button class="tab active" onclick="switchTab('face-unlock')">🔐 얼굴 잠금/해제</button>
+                <button class="tab" onclick="switchTab('shape-recognition')">🔷 도형인식</button>
+                <button class="tab" onclick="switchTab('color-recognition')">🎨 컬러인식</button>
+                <button class="tab" onclick="switchTab('digit-recognition')">✍️ 필기체 숫자 인식</button>
+                <button class="tab" onclick="switchTab('line-recognition')">📉 라인인식</button>
+            </div>
+        </div>
+        
+        <div id="tab-contents" class="mt-2">
+
+            <div id="face-unlock-tab" class="tab-content active">
+                <main class="flex flex-col items-center">
+                    <div id="canvas-container" class="rounded-xl overflow-hidden shadow-md border-2 border-gray-200 bg-black flex justify-center items-center">
+                        <video id="video" autoplay muted playsinline></video>
+                        <canvas id="canvas"></canvas>
+                        <div id="loader" class="loader"></div>
+                        <div id="loading-text" class="text-white absolute mt-20">AI 모델 로딩 중...</div>
+                    </div>
+                     <div id="result-display" class="mt-4 text-2xl font-bold text-center h-8"></div>
+                </main>
+                
+                <div class="w-full max-w-2xl mx-auto mt-6 space-y-6">
+                    <div class="card p-4 bg-gray-50 rounded-lg">
+                        <h3 class="text-lg font-bold mb-3">👨‍🎓 얼굴 학습 및 값 설정</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
+                            <input type="text" id="name-input" placeholder="이름 입력 (영문)" class="input-box">
+                            <input type="text" id="value-input" placeholder="전송할 값 입력 (예: 1)" class="input-box">
+                        </div>
+                        <button id="register-btn" class="btn btn-primary w-full mb-3" style="margin: 0;">이 얼굴로 등록/추가</button>
+                        <div id="registered-users-list" class="space-y-2 mb-3"></div>
+                        <button id="clear-btn" class="btn btn-danger w-full" style="margin: 0;">모든 얼굴 삭제</button>
+                    </div>
+    
+                    <div class="card p-4 bg-gray-50 rounded-lg">
+                        <h3 class="text-lg font-bold mb-3">🔌 연결 설정</h3>
+                        <div class="input-group mb-4">
+                            <label for="ble-device-type" class="text-sm font-medium text-gray-700">블루투스 장치 유형</label>
+                            <select id="ble-device-type" class="w-full mt-1 p-2 border border-gray-300 rounded-md">
+                                <option value="microbit">마이크로비트 (이름으로 검색)</option>                    
+                                <option value="generic">일반 UART 장치 (Arduino, ESP32 등)</option>
+                            </select>
+                        </div>
+                        <div class="flex flex-wrap items-center">
+                            <button id="connectSerialBtn" class="btn btn-primary">시리얼 연결</button>
+                            <button id="disconnectSerialBtn" class="btn btn-danger" disabled>해제</button>
+                            <button id="connectBleBtn" class="btn btn-primary">블루투스 연결</button>
+                            <button id="disconnectBleBtn" class="btn btn-danger" disabled>해제</button>
+                            <span id="connectionStatus" class="status disconnected">연결 안됨</span>
+                        </div>
+                        <div class="mt-4 pt-4 border-t flex items-center justify-between">
+                            <div class="flex items-center">
+                                <span class="text-sm font-medium text-gray-700">전송 방식:</span>
+                                <span id="send-mode-status" class="ml-2 text-sm font-bold"></span>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox" id="send-once-toggle" checked>
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+    
+                    <div class="card p-4 bg-orange-50 rounded-lg">
+                        <h3 class="text-lg font-bold mb-3">💡 사용 방법</h3>
+                        <ol class="list-decimal list-inside space-y-2 text-sm text-gray-700">
+                            <li>'얼굴 학습' 메뉴에서 이름과 전송할 값을 입력하고 '등록' 버튼을 눌러 얼굴을 등록합니다.</li>
+                            <li>'연결 설정' 메뉴에서 제어할 장치를 연결하고, 값 전송 방식을 선택합니다(1회/연속).</li>
+                            <li>카메라에 얼굴을 비추면 실시간으로 인식이 시작됩니다.</li>
+                            <li>등록된 사용자는 '인증됨' 메시지와 함께 <b>설정한 값</b>이, 미등록 사용자는 <b>0</b> 신호가 장치로 전송됩니다.</li>
+                        </ol>
+                        <div class="mt-4 pt-3 border-t">
+                            <h4 class="font-bold text-md text-orange-800">## 사용 팁</h4>
+                            <p class="text-sm text-gray-700 mt-1">인식률을 높이려면, 한 사람에 대해 여러 모습으로 등록하는 것이 좋습니다.</p>
+                            <ul class="list-disc list-inside space-y-1 text-sm text-gray-600 mt-2">
+                                <li>정면 얼굴을 먼저 등록하고,</li>
+                                <li>살짝 웃는 얼굴, 활짝 웃는 얼굴,</li>
+                                <li>고개를 살짝 왼쪽/오른쪽으로 돌린 얼굴,</li>
+                                <li>안경을 썼다 벗은 얼굴 (안경을 쓴다면)</li>
+                                <li>이런 식으로 최소 3~5번 이상 다양한 모습으로 등록해주세요.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="shape-recognition-tab" class="tab-content">
+                <div class="text-center py-20 bg-gray-50 rounded-lg min-h-[300px] flex flex-col items-center justify-center">
+                    <h2 class="text-4xl font-bold text-gray-400">기능 준비 중입니다 🚀</h2>
+                    <p class="text-gray-500 mt-4">도형인식 기능이 곧 추가될 예정입니다.</p>
+                </div>
+            </div>
+            <div id="color-recognition-tab" class="tab-content">
+                <div class="text-center py-20 bg-gray-50 rounded-lg min-h-[300px] flex flex-col items-center justify-center">
+                    <h2 class="text-4xl font-bold text-gray-400">기능 준비 중입니다 🚀</h2>
+                    <p class="text-gray-500 mt-4">컬러인식 기능이 곧 추가될 예정입니다.</p>
+                </div>
+            </div>
+            <div id="digit-recognition-tab" class="tab-content">
+                <div class="text-center py-20 bg-gray-50 rounded-lg min-h-[300px] flex flex-col items-center justify-center">
+                    <h2 class="text-4xl font-bold text-gray-400">기능 준비 중입니다 🚀</h2>
+                    <p class="text-gray-500 mt-4">필기체 숫자 인식 기능이 곧 추가될 예정입니다.</p>
+                </div>
+            </div>
+            <div id="line-recognition-tab" class="tab-content">
+                 <div class="text-center py-20 bg-gray-50 rounded-lg min-h-[300px] flex flex-col items-center justify-center">
+                    <h2 class="text-4xl font-bold text-gray-400">기능 준비 중입니다 🚀</h2>
+                    <p class="text-gray-500 mt-4">라인인식 기능이 곧 추가될 예정입니다.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mt-6 p-4 bg-gray-100 rounded-lg">
+            <h3 class="text-lg font-bold mb-3" data-translate-key="developer_info">👨‍💻 개발자 정보</h3>
+            <div class="text-sm text-gray-600 space-y-2">
+                <p>
+                    <strong data-translate-key="developer_name">김석전</strong><span data-translate-key="developer_affiliation_face">, 송도중학교 정보교사 / 인하대학교 겸임교수</span> 📅 Since 2023.04.24 | 📧 alphaco@kakao.com
+                </p>
+                <div class="mt-3 p-3 bg-white rounded border border-gray-200">
+                    <p class="mb-2" data-translate-key="developer_info_total">WebSerial과 WebBLE를 이용해 다양한 인식 결과를 유/무선으로 MCU에 전송하는 웹앱입니다.</p>
+                    <p class="mb-2" data-translate-key="app_description_2">✅ 아두이노, 마이크로비트, ESP32, 라즈베리파이 피코 등 모든 MCU를 사용할 수 있습니다.</p>
+                    <p class="mb-2" data-translate-key="app_description_3">🌐 Chrome, Edge 브라우저에서 테스트 되었습니다.</p>
+                    <p class="mb-2" data-translate-key="developer_info_hardware_note_face">⚙️ 하드웨어는 블록코딩이나 텍스트 코딩을 이용해 사전에 코드 업로드가 필요합니다.</p>
+                    <p class="mb-2" data-translate-key="app_description_5">🚀 인공지능에 다양한 출력장치를 연결하여 AIoT 애플리케이션을 제작해 보세요.</p>
+                    <p class="mt-3 font-medium" data-translate-key="ccl">📜 CCL: BY-NC-ND</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 우클릭 방지
+        document.addEventListener('contextmenu', event => event.preventDefault());
+        // Tab switching function
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            document.getElementById(tabId + '-tab').classList.add('active');
+            document.querySelector(`button[onclick="switchTab('${tabId}')"]`).classList.add('active');
+        }
+
+        // FaceLockApp Script
+        const ui = {
+            video: document.getElementById('video'),
+            canvas: document.getElementById('canvas'),
+            loader: document.getElementById('loader'),
+            loadingText: document.getElementById('loading-text'),
+            nameInput: document.getElementById('name-input'),
+            valueInput: document.getElementById('value-input'),
+            registerBtn: document.getElementById('register-btn'),
+            clearBtn: document.getElementById('clear-btn'),
+            registeredUsersList: document.getElementById('registered-users-list'),
+            resultDisplay: document.getElementById('result-display'),
+            connectSerialBtn: document.getElementById('connectSerialBtn'),
+            disconnectSerialBtn: document.getElementById('disconnectSerialBtn'),
+            connectBleBtn: document.getElementById('connectBleBtn'),
+            disconnectBleBtn: document.getElementById('disconnectBleBtn'),
+            connectionStatus: document.getElementById('connectionStatus'),
+            bleDeviceType: document.getElementById('ble-device-type'),
+            sendOnceToggle: document.getElementById('send-once-toggle'),
+            sendModeStatus: document.getElementById('send-mode-status')
+        };
+
+        const CONFIG = {
+            SERIAL_BAUD_RATE: 9600,
+            BLE_SERVICE_UUID: '6e400001-b5a3-f393-e0a9-e50e24dcca9e',
+            BLE_CHARACTERISTIC_UUID: '6e400003-b5a3-f393-e0a9-e50e24dcca9e',
+            RECOGNITION_THRESHOLD: 0.4, 
+            MAX_USERS: 5,
+            LOCAL_STORAGE_KEY: 'faceLockRegisteredUsers'
+        };
+
+        const ConnectionManager = {
+            port: null, writer: null,
+            bleDevice: null, bleCharacteristic: null,
+            
+            async sendToMCU(data) {
+                const dataToSend = data + '\n';
+                if (this.port?.writable) {
+                    try {
+                        this.writer = this.port.writable.getWriter();
+                        await this.writer.write(new TextEncoder().encode(dataToSend));
+                    } catch (e) { console.error("시리얼 데이터 전송 오류:", e); } 
+                    finally { if (this.writer) { this.writer.releaseLock(); this.writer = null; } }
+                }
+                if (this.bleCharacteristic) {
+                    try { await this.bleCharacteristic.writeValue(new TextEncoder().encode(dataToSend)); } 
+                    catch (e) { console.error("BLE 데이터 전송 오류:", e); }
+                }
+            },
+            
+            async connectSerial() { 
+                try {
+                    const port = await navigator.serial.requestPort(); 
+                    await port.open({ baudRate: CONFIG.SERIAL_BAUD_RATE }); 
+                    this.port = port;
+                    this.updateConnectionStatus();
+                } catch(e) {
+                    if (e.name !== 'NotFoundError') alert(`시리얼 연결 오류: ${e.message}`);
+                } 
+            },
+
+            async disconnectSerial() { 
+                if (!this.port) return;
+                try { 
+                    if (this.port.readable || this.port.writable) await this.port.close();
+                } catch (e) { console.error('포트 닫기 중 오류:', e); } 
+                finally { 
+                    this.port = null; 
+                    this.updateConnectionStatus();
+                }
+            },
+
+            async connectBLE() {
+                const devType = ui.bleDeviceType.value;
+                const opts = devType === 'microbit' ? {filters:[{namePrefix:"BBC micro:bit"}], optionalServices:[CONFIG.BLE_SERVICE_UUID]} : {filters:[{services:[CONFIG.BLE_SERVICE_UUID]}]};
+                try {
+                    this.bleDevice = await navigator.bluetooth.requestDevice(opts);
+                    this.bleDevice.addEventListener('gattserverdisconnected', () => this.updateConnectionStatus());
+                    const server = await this.bleDevice.gatt.connect();
+                    const service = await server.getPrimaryService(CONFIG.BLE_SERVICE_UUID);
+                    this.bleCharacteristic = await service.getCharacteristic(CONFIG.BLE_CHARACTERISTIC_UUID);
+                    this.updateConnectionStatus(); 
+                    alert('블루투스 연결 성공!');
+                } catch(e) {
+                    alert(`블루투스 연결 오류: ${e.message}`); 
+                    this.updateConnectionStatus();
+                }
+            },
+
+            disconnectBLE() { 
+                if(this.bleDevice?.gatt.connected){
+                    this.bleDevice.gatt.disconnect();
+                } 
+            },
+
+            // BUG-FIXED updateConnectionStatus
+            updateConnectionStatus() {
+                const serialConnected = !!this.port;
+                const bleConnected = !!(this.bleDevice?.gatt?.connected);
+
+                // Update status text
+                if (serialConnected) {
+                    ui.connectionStatus.textContent = '시리얼 연결됨';
+                    ui.connectionStatus.className = 'status connected';
+                } else if (bleConnected) {
+                    ui.connectionStatus.textContent = '블루투스 연결됨';
+                    ui.connectionStatus.className = 'status connected';
+                } else {
+                    ui.connectionStatus.textContent = '연결 안됨';
+                    ui.connectionStatus.className = 'status disconnected';
+                }
+
+                // Update Serial Buttons
+                ui.connectSerialBtn.disabled = serialConnected;
+                ui.disconnectSerialBtn.disabled = !serialConnected;
+
+                // Update BLE Buttons
+                ui.connectBleBtn.disabled = bleConnected;
+                ui.disconnectBleBtn.disabled = !bleConnected;
+            }
+        };
+
+        const FaceLockApp = {
+            registeredUsers: [],
+            faceMatcher: null,
+            modelsLoaded: false, 
+            sendOnce: true,
+            lastRecognizedLabel: null,
+
+            async init() {
+                this.setupEventListeners();
+                this.updateSendModeStatus();
+                this.startWebcam();
+                await this.loadModels();
+                this.loadRegisteredFaces();
+            },
+
+            setupEventListeners() {
+                ui.registerBtn.addEventListener('click', () => this.handleRegistration());
+                ui.clearBtn.addEventListener('click', () => this.handleClear());
+                ui.connectSerialBtn.addEventListener('click', () => ConnectionManager.connectSerial());
+                ui.disconnectSerialBtn.addEventListener('click', () => ConnectionManager.disconnectSerial());
+                ui.connectBleBtn.addEventListener('click', () => ConnectionManager.connectBLE());
+                ui.disconnectBleBtn.addEventListener('click', () => ConnectionManager.disconnectBLE());
+                ui.sendOnceToggle.addEventListener('change', (e) => {
+                    this.sendOnce = e.target.checked;
+                    this.updateSendModeStatus();
+                });
+            },
+
+            updateSendModeStatus() {
+                if (this.sendOnce) {
+                    ui.sendModeStatus.textContent = '1회 전송 (once)';
+                    ui.sendModeStatus.className = 'ml-2 text-sm font-bold text-green-600';
+                } else {
+                    ui.sendModeStatus.textContent = '연속 전송 (continuously)';
+                    ui.sendModeStatus.className = 'ml-2 text-sm font-bold text-blue-600';
+                }
+            },
+
+            async loadModels() {
+                const MODEL_URL = './weights'; 
+                try {
+                    await Promise.all([
+                        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+                        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+                        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+                    ]);
+                    this.modelsLoaded = true;
+                    ui.loader.style.display = 'none';
+                    ui.loadingText.style.display = 'none';
+                } catch (error) {
+                    ui.loader.style.display = 'none';
+                    ui.loadingText.innerHTML = "모델 로딩 실패.<br>'weights' 폴더가 html 파일 옆에 있는지 확인하세요.";
+                    console.error("AI 모델 로딩 오류:", error);
+                }
+            },
+
+            startWebcam() {
+                navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+                    .then(stream => {
+                        ui.video.srcObject = stream;
+                        ui.video.addEventListener('play', () => this.startRecognitionLoop());
+                    })
+                    .catch(err => {
+                        alert("웹캠을 시작할 수 없습니다. 카메라 권한을 확인해주세요.");
+                        ui.loader.style.display = 'none';
+                        ui.loadingText.textContent = "카메라 권한이 필요합니다.";
+                    });
+            },
+
+            loadRegisteredFaces() {
+                const data = localStorage.getItem(CONFIG.LOCAL_STORAGE_KEY);
+                if (data) {
+                    const parsedData = JSON.parse(data);
+                    this.registeredUsers = parsedData.map(user => ({
+                        ...user,
+                        descriptors: new faceapi.LabeledFaceDescriptors(user.label, user.descriptors.map(d => new Float32Array(d)))
+                    }));
+                }
+                this.updateFaceMatcher();
+                this.updateRegisteredUsersUI();
+            },
+
+            saveRegisteredFaces() {
+                const dataToSave = this.registeredUsers.map(user => ({
+                    label: user.label,
+                    value: user.value,
+                    descriptors: user.descriptors.descriptors.map(d => Array.from(d))
+                }));
+                localStorage.setItem(CONFIG.LOCAL_STORAGE_KEY, JSON.stringify(dataToSave));
+            },
+            
+            updateRegisteredUsersUI() {
+                ui.registeredUsersList.innerHTML = '';
+                this.registeredUsers.forEach(user => {
+                    const userEl = document.createElement('div');
+                    userEl.className = 'user-list-item';
+                    userEl.innerHTML = `<span>👤 ${user.label} → <b>${user.value}</b> (${user.descriptors.descriptors.length}회)</span><button data-label="${user.label}">&times;</button>`;
+                    ui.registeredUsersList.appendChild(userEl);
+                });
+                ui.registeredUsersList.querySelectorAll('button').forEach(btn => {
+                    btn.addEventListener('click', (e) => this.removeUser(e.target.dataset.label));
+                });
+            },
+
+            async handleRegistration() {
+                if (!this.modelsLoaded) {
+                    alert("아직 AI 모델이 로딩 중입니다. 잠시만 기다려주세요.");
+                    return;
+                }
+                const name = ui.nameInput.value.trim();
+                const value = ui.valueInput.value.trim();
+                if (!name || !value) {
+                    alert("이름과 전송할 값을 모두 입력해주세요.");
+                    return;
+                }
+
+                ui.resultDisplay.textContent = '얼굴을 정면으로 보여주세요...';
+                const detections = await faceapi.detectSingleFace(ui.video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+
+                if (!detections) {
+                    alert("얼굴을 찾을 수 없습니다. 밝은 곳에서 다시 시도해주세요.");
+                    ui.resultDisplay.textContent = '';
+                    return;
+                }
+                
+                const existingUser = this.registeredUsers.find(user => user.label === name);
+
+                if (existingUser) {
+                    existingUser.value = value;
+                    existingUser.descriptors.descriptors.push(detections.descriptor);
+                    ui.resultDisplay.textContent = `${name}님의 정보 업데이트 및 얼굴 추가 완료!`;
+
+                } else {
+                    if (this.registeredUsers.length >= CONFIG.MAX_USERS) {
+                        alert(`최대 ${CONFIG.MAX_USERS}명까지만 등록할 수 있습니다.`);
+                        return;
+                    }
+                    const newUserData = {
+                        label: name,
+                        value: value,
+                        descriptors: new faceapi.LabeledFaceDescriptors(name, [detections.descriptor])
+                    };
+                    this.registeredUsers.push(newUserData);
+                    ui.resultDisplay.textContent = `${name}님 신규 등록 완료!`;
+                }
+                
+                this.saveRegisteredFaces();
+                this.updateFaceMatcher();
+                this.updateRegisteredUsersUI();
+
+                ui.nameInput.value = '';
+                ui.valueInput.value = '';
+                setTimeout(() => ui.resultDisplay.textContent = '', 2000);
+            },
+            
+            removeUser(labelToRemove) {
+                this.registeredUsers = this.registeredUsers.filter(user => user.label !== labelToRemove);
+                this.saveRegisteredFaces();
+                this.updateFaceMatcher();
+                this.updateRegisteredUsersUI();
+            },
+
+            handleClear() {
+                if(confirm("정말로 모든 등록된 얼굴을 삭제하시겠습니까?")) {
+                    this.registeredUsers = [];
+                    localStorage.removeItem(CONFIG.LOCAL_STORAGE_KEY);
+                    this.updateFaceMatcher();
+                    this.updateRegisteredUsersUI();
+                }
+            },
+            
+            updateFaceMatcher() {
+                if (this.registeredUsers.length > 0) {
+                    const labeledDescriptors = this.registeredUsers.map(user => user.descriptors);
+                    this.faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, CONFIG.RECOGNITION_THRESHOLD);
+                } else {
+                    this.faceMatcher = null;
+                }
+            },
+
+            startRecognitionLoop() {
+                const displaySize = { width: ui.video.clientWidth, height: ui.video.clientHeight };
+                faceapi.matchDimensions(ui.canvas, displaySize);
+
+                setInterval(async () => {
+                    if (!this.modelsLoaded) { return; }
+
+                    const detections = await faceapi.detectAllFaces(ui.video, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptors();
+                    const resizedDetections = faceapi.resizeResults(detections, displaySize);
+                    
+                    ui.canvas.getContext('2d').clearRect(0, 0, ui.canvas.width, ui.canvas.height);
+                    
+                    if (!this.faceMatcher) {
+                        ui.resultDisplay.textContent = "얼굴을 먼저 등록해주세요.";
+                        return;
+                    }
+
+                    if (resizedDetections.length > 0) {
+                        const results = resizedDetections.map(d => this.faceMatcher.findBestMatch(d.descriptor));
+                        let recognized = false;
+                        
+                        const bestResult = results[0];
+
+                        if (bestResult.label !== 'unknown') {
+                            const recognizedUser = this.registeredUsers.find(user => user.label === bestResult.label);
+                            if (recognizedUser) {
+                                ui.resultDisplay.innerHTML = `✅ <span style="color:var(--primary)">${recognizedUser.label}</span>님, 인증되었습니다. (전송값: ${recognizedUser.value})`;
+                                
+                                if (this.sendOnce) {
+                                    if (this.lastRecognizedLabel !== recognizedUser.label) {
+                                        ConnectionManager.sendToMCU(recognizedUser.value);
+                                    }
+                                } else {
+                                    ConnectionManager.sendToMCU(recognizedUser.value);
+                                }
+                                this.lastRecognizedLabel = recognizedUser.label;
+                                recognized = true;
+                            }
+                        }
+
+                        results.forEach((result, i) => {
+                            const box = resizedDetections[i].detection.box;
+                            const drawBox = new faceapi.draw.DrawBox(box, { label: result.toString() });
+                            drawBox.draw(ui.canvas);
+                        });
+
+                        if (!recognized) {
+                           ui.resultDisplay.innerHTML = '❌ 등록되지 않은 사용자입니다.';
+                           ConnectionManager.sendToMCU('0');
+                           this.lastRecognizedLabel = null;
+                        }
+                    } else {
+                        ui.resultDisplay.textContent = '카메라 앞에서 얼굴을 보여주세요.';
+                        this.lastRecognizedLabel = null;
+                    }
+                }, 200);
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', () => FaceLockApp.init());
+    </script>
+</body>
+</html>
