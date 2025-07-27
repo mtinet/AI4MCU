@@ -307,6 +307,25 @@
 
         const AppState = { isRunning: false, activeTabId: 'face-coords', leftEyeBlinkCounter: 0, rightEyeBlinkCounter: 0, faceMesh: null, videoStream: null, lastSendTime: 0, sendOnce: true, lastSentData: null, selectedDeviceId: null, cameras: [], currentCameraIndex: 0, isMirror: true };
 
+        // iOS Safari 환경 감지 함수
+        function isIOS() {
+            return /iP(hone|od|ad)/.test(navigator.userAgent);
+        }
+
+        async function getCamerasWithIOSSupport() {
+            if (isIOS()) {
+                try {
+                    // iOS에서는 권한 먼저 요청
+                    await navigator.mediaDevices.getUserMedia({ video: true });
+                } catch (e) {
+                    alert('카메라 권한이 필요합니다. 설정에서 허용해 주세요.');
+                    return [];
+                }
+            }
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            return devices.filter(device => device.kind === 'videoinput');
+        }
+
         const FaceRecognitionApp = {
             async startVideoStreamByIndex(index) {
                 if (AppState.videoStream) {
@@ -314,8 +333,7 @@
                 }
                 try {
                     if (!AppState.cameras.length) {
-                        const devices = await navigator.mediaDevices.enumerateDevices();
-                        AppState.cameras = devices.filter(device => device.kind === 'videoinput');
+                        AppState.cameras = await getCamerasWithIOSSupport();
                     }
                     const cam = AppState.cameras[index];
                     const deviceId = cam?.deviceId;
