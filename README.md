@@ -24,5 +24,5 @@ WebSerial과 WebBLE를 이용해 다양한 인공지능 서비스 결과를 유/
 
 TM 테스트 링크: 
 - 이미지(보자기, 주먹): https://teachablemachine.withgoogle.com/models/-iyVG7y9w/  
-- 포즈:  
+- 포즈(고개들기, 고개숙이기): https://teachablemachine.withgoogle.com/models/hX1r_1wCh/  
 - 오디오(오리, 사과): https://teachablemachine.withgoogle.com/models/ANbGmoscjL/  
