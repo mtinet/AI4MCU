@@ -419,7 +419,6 @@
 
                 const initCameras = async () => {
                     try {
-                        // getUserMedia로 미리 스트림을 열어 권한을 요청하는 부분 삭제
                         const devices = await navigator.mediaDevices.enumerateDevices();
                         this.cameras = devices.filter(device => device.kind === 'videoinput');
                         if (this.cameras.length === 0) {

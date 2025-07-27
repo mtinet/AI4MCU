@@ -112,10 +112,6 @@
         <div class="card mt-6 p-4 bg-gray-50 rounded-lg">
             <h3 class="text-lg font-bold mb-3" data-translate-key="connection_settings">🔌 연결 설정</h3>
             <div class="input-group mb-4">
-                <label for="webcam-select" class="text-sm font-medium text-gray-700" data-translate-key="webcam_select">웹캠 선택</label>
-                <select id="webcam-select" class="w-full mt-1 p-2 border border-gray-300 rounded-md"></select>
-            </div>
-            <div class="input-group mb-4">
                 <label for="ble-device-type" class="text-sm font-medium text-gray-700" data-translate-key="ble_device_type">블루투스 장치 유형</label>
                 <select id="ble-device-type" class="w-full mt-1 p-2 border border-gray-300 rounded-md">
                     <option value="microbit" data-translate-key="microbit_device">마이크로비트 (이름으로 검색)</option>                    
@@ -357,49 +353,111 @@
             disconnectBLE() { if(this.bleDevice?.gatt.connected) this.bleDevice.gatt.disconnect(); }
         };
 
-        const AppState = { isRunning: false, activeTabId: 'hand-coords', hands: null, camera: null, lastSendTime: 0, sendOnce: true, lastSentData: null, selectedDeviceId: null, cameras: [] };
+        const AppState = { isRunning: false, activeTabId: 'hand-coords', hands: null, videoStream: null, lastSendTime: 0, sendOnce: true, lastSentData: null, selectedDeviceId: null, cameras: [], currentCameraIndex: 0 };
 
         const HandRecognitionApp = {
-            async setupWebcamSelector() {
-                const webcamSelect = document.getElementById('webcam-select');
-                webcamSelect.innerHTML = '';
-
+            async startVideoStreamByIndex(index) {
+                if (AppState.videoStream) {
+                    AppState.videoStream.getTracks().forEach(track => track.stop());
+                }
                 try {
-                    const devices = await navigator.mediaDevices.enumerateDevices();
-                    AppState.cameras = devices.filter(device => device.kind === 'videoinput');
+                    if (!AppState.cameras.length) {
+                        const devices = await navigator.mediaDevices.enumerateDevices();
+                        AppState.cameras = devices.filter(device => device.kind === 'videoinput');
+                    }
+                    const cam = AppState.cameras[index];
+                    const deviceId = cam?.deviceId;
+                    if (!deviceId) throw new Error('카메라를 찾을 수 없습니다.');
+                    AppState.selectedDeviceId = deviceId;
+                    AppState.currentCameraIndex = index;
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: { deviceId: { exact: deviceId } },
+                        audio: false
+                    });
+                    const video = UIManager.elements.video;
+                    video.srcObject = stream;
+                    AppState.videoStream = stream;
+                    await video.play();
+                } catch (e) {
+                    alert('카메라를 열 수 없습니다: ' + e.name + (e.message ? ' - ' + e.message : ''));
+                }
+            },
+            async changeCameraByIndex(index) {
+                await this.startVideoStreamByIndex(index);
+            },
+            async changeCamera() {
+                if (AppState.cameras.length > 1) {
+                    AppState.currentCameraIndex = (AppState.currentCameraIndex + 1) % AppState.cameras.length;
+                    await this.changeCameraByIndex(AppState.currentCameraIndex);
+                }
+            },
+            async startRecognition() {
+                if (AppState.isRunning) {
+                    this.stopRecognition();
+                    return;
+                }
+                UIManager.updateStartButton('loading_model', true);
 
-                    if (AppState.cameras.length === 0) {
-                        const option = document.createElement('option');
-                        option.textContent = '웹캠을 찾을 수 없습니다.';
-                        webcamSelect.appendChild(option);
+                if (!AppState.hands) {
+                    AppState.hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+                    AppState.hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
+                    AppState.hands.onResults((results) => this.onResults(results));
+                }
+
+                if (AppState.cameras.length === 0) {
+                    try {
+                        const devices = await navigator.mediaDevices.enumerateDevices();
+                        AppState.cameras = devices.filter(device => device.kind === 'videoinput');
+                        if (AppState.cameras.length === 0) {
+                            alert('사용 가능한 카메라가 없습니다.');
+                            UIManager.updateStartButton('start_recognition', false);
+                            return;
+                        }
+                        if (!AppState.selectedDeviceId && AppState.cameras.length > 0) {
+                            AppState.selectedDeviceId = AppState.cameras[0].deviceId;
+                            AppState.currentCameraIndex = 0;
+                        }
+                    } catch (e) {
+                        alert('카메라 목록을 가져오는 데 실패했습니다.');
+                        UIManager.updateStartButton('start_recognition', false);
                         return;
                     }
-                    
-                    AppState.cameras.forEach((device, index) => {
-                        const option = document.createElement('option');
-                        option.value = device.deviceId;
-                        option.textContent = device.label || `Webcam ${index + 1}`;
-                        webcamSelect.appendChild(option);
-                    });
+                }
 
-                    // 후면 카메라 우선 선택 로직 제거 (getUserMedia 사용 X)
-                    AppState.selectedDeviceId = webcamSelect.value; // 첫 번째 카메라를 기본값으로
-                    webcamSelect.value = AppState.selectedDeviceId;
+                await this.startVideoStreamByIndex(AppState.currentCameraIndex);
 
-                    webcamSelect.addEventListener('change', async (e) => {
-                        AppState.selectedDeviceId = e.target.value;
-                        alert(`웹캠이 '${e.target.options[e.target.selectedIndex].text}'(으)로 변경되었습니다.`);
-                        
-                        if (AppState.isRunning) {
-                            await this.changeCamera();
-                        }
-                    });
+                AppState.isRunning = true;
+                UIManager.updateStartButton('stop_recognition', false);
+                UIManager.elements.changeCameraBtn.style.display = AppState.cameras.length > 1 ? 'inline-block' : 'none';
+                UIManager.elements.changeCameraBtn.disabled = AppState.cameras.length <= 1;
+                this.switchTab(AppState.activeTabId);
 
-                } catch (error) {
-                    console.error("웹캠 목록을 가져오는 중 오류 발생:", error);
-                    const option = document.createElement('option');
-                    option.textContent = '웹캠 접근 권한이 필요합니다.';
-                    webcamSelect.appendChild(option);
+                this._recognitionLoopActive = true;
+                this.recognitionLoop();
+            },
+            stopRecognition() {
+                if (!AppState.isRunning) return;
+                this._recognitionLoopActive = false;
+                if (AppState.videoStream) {
+                    AppState.videoStream.getTracks().forEach(track => track.stop());
+                    AppState.videoStream = null;
+                }
+                if (AppState.hands) {
+                    AppState.hands.close();
+                    AppState.hands = null;
+                }
+                AppState.isRunning = false;
+                UIManager.updateStartButton('start_recognition', false);
+                UIManager.elements.changeCameraBtn.style.display = 'none';
+                UIManager.resetAllDisplays();
+            },
+            async recognitionLoop() {
+                const video = UIManager.elements.video;
+                while (this._recognitionLoopActive && AppState.hands && AppState.isRunning) {
+                    if (video.readyState >= 2) {
+                        await AppState.hands.send({ image: video });
+                    }
+                    await new Promise(res => setTimeout(res, 10));
                 }
             },
             onResults(results) {
@@ -461,106 +519,8 @@
                 }
                 UIManager.resetAllDisplays();
             },
-            async startRecognition() {
-                if (AppState.isRunning) {
-                    this.stopRecognition();
-                    return;
-                }
-                UIManager.updateStartButton('loading_model', true);
-
-                if (!AppState.hands) {
-                    AppState.hands = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
-                    AppState.hands.setOptions({ maxNumHands: 2, modelComplexity: 1, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
-                    AppState.hands.onResults((results) => this.onResults(results));
-                }
-
-                const startCamera = async (deviceId) => {
-                    if (AppState.camera) {
-                        await AppState.camera.stop();
-                    }
-                    AppState.camera = new Camera(UIManager.elements.video, {
-                        onFrame: async () => {
-                            if (AppState.hands) {
-                                await AppState.hands.send({image: UIManager.elements.video});
-                            }
-                        },
-                        width: CONFIG.CAMERA_WIDTH, height: CONFIG.CAMERA_HEIGHT,
-                        deviceId: deviceId ? { exact: deviceId } : undefined
-                    });
-                    await AppState.camera.start();
-                };
-
-                if (AppState.cameras.length === 0) {
-                    try {
-                        const devices = await navigator.mediaDevices.enumerateDevices();
-                        AppState.cameras = devices.filter(device => device.kind === 'videoinput');
-                        if (AppState.cameras.length === 0) {
-                            alert('사용 가능한 카메라가 없습니다.');
-                            UIManager.updateStartButton('start_recognition', false);
-                            return;
-                        }
-                        if (!AppState.selectedDeviceId && AppState.cameras.length > 0) {
-                            AppState.selectedDeviceId = AppState.cameras[0].deviceId;
-                            document.getElementById('webcam-select').value = AppState.selectedDeviceId;
-                        }
-                    } catch (e) {
-                        alert('카메라 목록을 가져오는 데 실패했습니다.');
-                        UIManager.updateStartButton('start_recognition', false);
-                        return;
-                    }
-                }
-
-                await startCamera(AppState.selectedDeviceId);
-
-                AppState.isRunning = true;
-                UIManager.updateStartButton('stop_recognition', false);
-                UIManager.elements.changeCameraBtn.style.display = AppState.cameras.length > 1 ? 'inline-block' : 'none';
-                UIManager.elements.changeCameraBtn.disabled = AppState.cameras.length <= 1;
-                this.switchTab(AppState.activeTabId);
-            },
-            stopRecognition() {
-                if (!AppState.isRunning) return;
-                if (AppState.camera) {
-                    AppState.camera.stop();
-                    AppState.camera = null;
-                }
-                if (AppState.hands) {
-                    AppState.hands.close();
-                    AppState.hands = null;
-                }
-                AppState.isRunning = false;
-                UIManager.updateStartButton('start_recognition', false);
-                UIManager.elements.changeCameraBtn.style.display = 'none'; // 인식 중지 시 카메라 전환 버튼 숨김
-                UIManager.resetAllDisplays();
-            },
-            async changeCamera() {
-                if (AppState.cameras.length > 1 && AppState.isRunning) {
-                    const currentIndex = AppState.cameras.findIndex(device => device.deviceId === AppState.selectedDeviceId);
-                    const nextIndex = (currentIndex + 1) % AppState.cameras.length;
-                    AppState.selectedDeviceId = AppState.cameras[nextIndex].deviceId;
-                    document.getElementById('webcam-select').value = AppState.selectedDeviceId;
-                    
-                    if (AppState.camera) {
-                        await AppState.camera.stop();
-                    }
-
-                    AppState.camera = new Camera(UIManager.elements.video, {
-                        onFrame: async () => {
-                            if (AppState.hands) {
-                                await AppState.hands.send({image: UIManager.elements.video});
-                            }
-                        },
-                        width: CONFIG.CAMERA_WIDTH,
-                        height: CONFIG.CAMERA_HEIGHT,
-                        deviceId: { exact: AppState.selectedDeviceId }
-                    });
-                    await AppState.camera.start();
-                }
-            },
             init() {
                 UIManager.init();
-                this.setupWebcamSelector();
-                UIManager.updateSendModeStatus(AppState.sendOnce);
                 UIManager.elements.startBtn.addEventListener('click', () => this.startRecognition());
                 UIManager.elements.changeCameraBtn.addEventListener('click', () => this.changeCamera());
                 UIManager.elements.connectSerialBtn.addEventListener('click', () => ConnectionManager.connectSerial());

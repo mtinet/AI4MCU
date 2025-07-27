@@ -147,11 +147,6 @@
             <h3 class="text-xl font-bold mb-4" data-translate-key="connection_settings">🔌 연결 설정</h3>
             
             <div class="input-group mb-4">
-                <label for="webcam-select" class="text-sm font-medium text-gray-700" data-translate-key="webcam_select">웹캠 선택</label>
-                <select id="webcam-select" class="w-full mt-1 p-2 border border-gray-300 rounded-md"></select>
-            </div>
-
-            <div class="input-group mb-4">
                 <label for="ble-device-type" class="text-sm font-medium text-gray-700" data-translate-key="ble_device_type">블루투스 장치 유형</label>
                 <select id="ble-device-type" class="w-full mt-1 p-2 border border-gray-300 rounded-md">
                     <option value="microbit" data-translate-key="microbit_device">마이크로비트 (이름으로 검색)</option>
@@ -258,42 +253,16 @@
         
         // ==================== 웹캠 관리 ====================
         async function setupWebcamSelector() {
-            const webcamSelect = document.getElementById('webcam-select');
-            webcamSelect.innerHTML = ''; 
-
             try {
                 const devices = await navigator.mediaDevices.enumerateDevices();
                 cameras = devices.filter(device => device.kind === 'videoinput');
-
                 if (cameras.length === 0) {
-                    const option = document.createElement('option');
-                    option.textContent = '웹캠을 찾을 수 없습니다.';
-                    webcamSelect.appendChild(option);
+                    alert('웹캠을 찾을 수 없습니다.');
                     return;
                 }
-                
-                cameras.forEach((device, index) => {
-                    const option = document.createElement('option');
-                    option.value = device.deviceId;
-                    option.textContent = device.label || `Webcam ${index + 1}`;
-                    webcamSelect.appendChild(option);
-                });
-
-                selectedDeviceId = webcamSelect.value;
-
-                webcamSelect.addEventListener('change', (e) => {
-                    selectedDeviceId = e.target.value;
-                    alert(`웹캠이 '${e.target.options[e.target.selectedIndex].text}'(으)로 변경되었습니다. 진행 중인 작업을 중지합니다.`);
-                    
-                    if (isRunning.image) stopImage();
-                    if (isRunning.pose) stopPose();
-                });
-
+                selectedDeviceId = cameras[0].deviceId;
             } catch (error) {
                 console.error("웹캠 목록을 가져오는 중 오류 발생:", error);
-                const option = document.createElement('option');
-                option.textContent = '웹캠 접근 권한이 필요합니다.';
-                webcamSelect.appendChild(option);
             }
         }
 
@@ -301,22 +270,30 @@
             if (cameras.length > 1) {
                 currentCameraIndex = (currentCameraIndex + 1) % cameras.length;
                 selectedDeviceId = cameras[currentCameraIndex].deviceId;
-                document.getElementById('webcam-select').value = selectedDeviceId;
-                
                 if (isRunning.image) {
                     await webcams.image.stop();
                     webcams.image = new tmImage.Webcam(400, 400, true);
                     await webcams.image.setup({ deviceId: selectedDeviceId });
                     await webcams.image.play();
+                    // mirror 여부 결정 (label에 front/user/webcam 포함 시만 true)
+                    const cam = cameras.find(cam => cam.deviceId === selectedDeviceId);
+                    const label = (cam?.label || '').toLowerCase();
+                    if (label.includes('front') || label.includes('user') || label.includes('webcam')) {
+                        isMirror = true;
+                    } else {
+                        isMirror = false;
+                    }
                     const imageWebcamContainer = document.getElementById("image-webcam-container");
                     imageWebcamContainer.innerHTML = '';
                     imageWebcamContainer.appendChild(webcams.image.canvas);
+                    webcams.image.canvas.className = 'webcam-canvas';
                     loopImage();
                 } else if (isRunning.pose) {
                     await webcams.pose.stop();
                     webcams.pose = new tmPose.Webcam(400, 400, true);
                     await webcams.pose.setup({ deviceId: selectedDeviceId });
                     await webcams.pose.play();
+                    // 포즈 탭도 동일하게 mirror 적용 가능 (필요시)
                     loopPose();
                 }
             }
@@ -366,6 +343,8 @@
         
         // ==================== 이미지 인식 ====================
         
+        let isMirror = true;
+
         async function loadImageModel() {
             const url = document.getElementById('imageUrl').value;
             if (!url) return alert('이미지 모델 URL을 입력하세요.');
@@ -387,9 +366,14 @@
             webcams.image = new tmImage.Webcam(400, 400, true);
             await webcams.image.setup({ deviceId: selectedDeviceId });
             await webcams.image.play();
-            
-            if (cameras.length === 0) {
-                await setupWebcamSelector();
+
+            // mirror 여부 결정 (label에 front/user/webcam 포함 시만 true)
+            const cam = cameras.find(cam => cam.deviceId === selectedDeviceId);
+            const label = (cam?.label || '').toLowerCase();
+            if (label.includes('front') || label.includes('user') || label.includes('webcam')) {
+                isMirror = true;
+            } else {
+                isMirror = false;
             }
 
             const imageWebcamContainer = document.getElementById("image-webcam-container");
@@ -415,9 +399,23 @@
             ui.changeCameraImageBtn.style.display = 'none';
         }
         
+        function drawWebcamToCanvas() {
+            // 좌우 반전 여부에 따라 그리기
+            const ctx = webcams.image.canvas.getContext('2d');
+            ctx.save();
+            ctx.clearRect(0, 0, webcams.image.canvas.width, webcams.image.canvas.height);
+            if (isMirror) {
+                ctx.translate(webcams.image.canvas.width, 0);
+                ctx.scale(-1, 1);
+            }
+            ctx.drawImage(webcams.image.webcam, 0, 0, webcams.image.canvas.width, webcams.image.canvas.height);
+            ctx.restore();
+        }
+
         async function loopImage() {
             if (!isRunning.image) return;
             webcams.image.update();
+            drawWebcamToCanvas();
             const prediction = await models.image.predict(webcams.image.canvas);
             displayPredictions(prediction);
             const maxPred = prediction.reduce((max, p) => p.probability > max.probability ? p : max);
