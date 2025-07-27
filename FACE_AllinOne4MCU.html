@@ -55,6 +55,11 @@
         </header>
 
         <main class="flex flex-col items-center">
+            <div id="ios-permission-warning" class="hidden w-full max-w-lg mb-6 p-4 bg-yellow-100 border border-yellow-400 text-yellow-800 rounded-lg text-center">
+                <div class="mb-2 font-bold">iOS 카메라 권한 필요</div>
+                <div class="mb-2">카메라 권한이 허용되지 않았습니다.<br>설정 &gt; Safari &gt; 카메라 허용을 확인하거나, 아래 버튼을 눌러 권한을 다시 요청하세요.</div>
+                <button id="ios-permission-retry" class="btn btn-primary">권한 재요청</button>
+            </div>
             <div class="w-full max-w-3xl mb-6">
                 <div class="tabs rounded-lg overflow-hidden border">
                     <button class="tab active" onclick="FaceRecognitionApp.switchTab('face-coords')" data-translate-key="tab_face_coords">📍 미간 좌표</button>
@@ -315,11 +320,11 @@
         async function getCamerasWithIOSSupport() {
             if (isIOS()) {
                 try {
-                    // iOS에서는 권한 먼저 요청
+                    // iOS에서는 권한 먼저 요청 (버튼 액션에서만 호출되어야 함)
                     await navigator.mediaDevices.getUserMedia({ video: true });
                 } catch (e) {
-                    alert('카메라 권한이 필요합니다. 설정에서 허용해 주세요.');
-                    return [];
+                    // 권한 거부 시 예외 발생
+                    return null; // iOS에서 권한 거부 시 null 반환
                 }
             }
             const devices = await navigator.mediaDevices.enumerateDevices();
@@ -372,6 +377,19 @@
                 if (AppState.isRunning) {
                     this.stopRecognition();
                     return;
+                }
+                // iOS 권한 분기
+                if (isIOS()) {
+                    // iOS에서는 권한 요청 및 카메라 확인을 먼저 한다
+                    document.getElementById('ios-permission-warning').classList.add('hidden');
+                    const cameras = await getCamerasWithIOSSupport();
+                    if (!cameras) {
+                        // 권한 거부됨
+                        document.getElementById('ios-permission-warning').classList.remove('hidden');
+                        UIManager.updateStartButton('start_recognition', false);
+                        return;
+                    }
+                    AppState.cameras = cameras;
                 }
                 UIManager.updateStartButton('loading_model', true);
 
@@ -500,7 +518,14 @@
                     AppState.sendOnce = e.target.checked;
                     UIManager.updateSendModeStatus(AppState.sendOnce);
                 });
-                
+                // iOS 권한 재요청 버튼
+                const iosRetryBtn = document.getElementById('ios-permission-retry');
+                if (iosRetryBtn) {
+                    iosRetryBtn.addEventListener('click', async () => {
+                        document.getElementById('ios-permission-warning').classList.add('hidden');
+                        await FaceRecognitionApp.startRecognition();
+                    });
+                }
                 window.FaceRecognitionApp = this;
                 window.ConnectionManager = ConnectionManager;
             }
