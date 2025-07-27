@@ -77,6 +77,11 @@
         </div>
         
         <div class="tabs rounded-lg overflow-hidden border">
+            <div id="ios-permission-warning" class="hidden w-full max-w-lg mb-6 p-4 bg-yellow-100 border border-yellow-400 text-yellow-800 rounded-lg text-center">
+                <div class="mb-2 font-bold">iOS 카메라 권한 필요</div>
+                <div class="mb-2">카메라 권한이 허용되지 않았습니다.<br>설정 &gt; Safari &gt; 카메라 허용을 확인하거나, 아래 버튼을 눌러 권한을 다시 요청하세요.</div>
+                <button id="ios-permission-retry" class="btn btn-primary">권한 재요청</button>
+            </div>
             <button class="tab active" onclick="switchTab('image')" data-translate-key="tab_image">📷 이미지 인식</button>
             <button class="tab" onclick="switchTab('pose')" data-translate-key="tab_pose">🏃 포즈 인식</button>
             <button class="tab" onclick="switchTab('voice')" data-translate-key="tab_voice">🎤 음성 인식</button>
@@ -252,7 +257,19 @@
         }
         
         // ==================== 웹캠 관리 ====================
+        function isIOS() {
+            return /iP(hone|od|ad)/.test(navigator.userAgent);
+        }
+
         async function setupWebcamSelector() {
+            if (isIOS()) {
+                try {
+                    await navigator.mediaDevices.getUserMedia({ video: true });
+                } catch (e) {
+                    document.getElementById('ios-permission-warning').classList.remove('hidden');
+                    return;
+                }
+            }
             try {
                 const devices = await navigator.mediaDevices.enumerateDevices();
                 cameras = devices.filter(device => device.kind === 'videoinput');
@@ -363,6 +380,15 @@
                 return;
             }
             if (!models.image) return;
+            if (isIOS()) {
+                document.getElementById('ios-permission-warning').classList.add('hidden');
+                try {
+                    await navigator.mediaDevices.getUserMedia({ video: true });
+                } catch (e) {
+                    document.getElementById('ios-permission-warning').classList.remove('hidden');
+                    return;
+                }
+            }
             webcams.image = new tmImage.Webcam(400, 400, true);
             await webcams.image.setup({ deviceId: selectedDeviceId });
             await webcams.image.play();
@@ -444,6 +470,15 @@
                 return;
             }
             if (!models.pose) return;
+            if (isIOS()) {
+                document.getElementById('ios-permission-warning').classList.add('hidden');
+                try {
+                    await navigator.mediaDevices.getUserMedia({ video: true });
+                } catch (e) {
+                    document.getElementById('ios-permission-warning').classList.remove('hidden');
+                    return;
+                }
+            }
 
             if (cameras.length === 0) {
                 await setupWebcamSelector();
@@ -642,6 +677,15 @@
                 sendOnce = e.target.checked;
                 updateSendModeStatus();
             });
+
+            // iOS 권한 재요청 버튼
+            const iosRetryBtn = document.getElementById('ios-permission-retry');
+            if (iosRetryBtn) {
+                iosRetryBtn.addEventListener('click', async () => {
+                    document.getElementById('ios-permission-warning').classList.add('hidden');
+                    await setupWebcamSelector();
+                });
+            }
         });
 
         document.addEventListener('contextmenu', function(e) {

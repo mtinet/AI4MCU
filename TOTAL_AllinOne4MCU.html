@@ -23,7 +23,7 @@
         body { font-family: 'Noto Sans KR', sans-serif; background-color: var(--bg); }
         
         /* Tab Styles */
-        .tab { flex: 1; padding: 15px; text-align: center; cursor: pointer; border: none; background: transparent; font-size: 14px; md:font-size: 16px; font-weight: 600; color: #666; transition: all 0.3s; position: relative; text-decoration: none; }
+        .tab { flex: 1; padding: 15px; text-align: center; cursor: pointer; border: none; background: transparent; font-size: 14px; font-weight: 600; color: #666; transition: all 0.3s; position: relative; text-decoration: none; }
         .tab:hover { background: rgba(0,0,0,0.05); }
         .tab.active { color: var(--primary); background: rgba(255, 152, 0, 0.1); }
         .tab.active::after { content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: var(--primary); }
@@ -71,6 +71,11 @@
         </header>
         
         <div class="w-full max-w-4xl mx-auto mb-6">
+            <div id="ios-permission-warning" class="hidden w-full max-w-lg mb-6 p-4 bg-yellow-100 border border-yellow-400 text-yellow-800 rounded-lg text-center">
+                <div class="mb-2 font-bold">iOS 카메라 권한 필요</div>
+                <div class="mb-2">카메라 권한이 허용되지 않았습니다.<br>설정 &gt; Safari &gt; 카메라 허용을 확인하거나, 아래 버튼을 눌러 권한을 다시 요청하세요.</div>
+                <button id="ios-permission-retry" class="btn btn-primary">권한 재요청</button>
+            </div>
              <div class="tabs rounded-lg overflow-hidden border flex flex-wrap">
                 <button class="tab active" onclick="switchTab('face-unlock')">🔐 얼굴 잠금/해제</button>
                 <button class="tab" onclick="switchTab('shape-recognition')">🔷 도형인식</button>
@@ -214,6 +219,10 @@
             document.querySelector(`button[onclick="switchTab('${tabId}')"]`).classList.add('active');
         }
 
+        function isIOS() {
+            return /iP(hone|od|ad)/.test(navigator.userAgent);
+        }
+
         // FaceLockApp Script
         const ui = {
             video: document.getElementById('video'),
@@ -352,6 +361,14 @@
                 await this.loadModels();
                 this.loadRegisteredFaces();
                 this.startWebcam();
+                // iOS 권한 재요청 버튼
+                const iosRetryBtn = document.getElementById('ios-permission-retry');
+                if (iosRetryBtn) {
+                    iosRetryBtn.addEventListener('click', async () => {
+                        document.getElementById('ios-permission-warning').classList.add('hidden');
+                        this.startWebcam();
+                    });
+                }
             },
 
             setupEventListeners() {
@@ -402,6 +419,15 @@
                         this.videoStream.getTracks().forEach(track => track.stop());
                     }
                     try {
+                        if (isIOS()) {
+                            document.getElementById('ios-permission-warning').classList.add('hidden');
+                            try {
+                                await navigator.mediaDevices.getUserMedia({ video: true });
+                            } catch (e) {
+                                document.getElementById('ios-permission-warning').classList.remove('hidden');
+                                return;
+                            }
+                        }
                         const stream = await navigator.mediaDevices.getUserMedia({
                             video: { deviceId: deviceId ? { exact: deviceId } : undefined },
                             audio: false
@@ -419,6 +445,15 @@
 
                 const initCameras = async () => {
                     try {
+                        if (isIOS()) {
+                            document.getElementById('ios-permission-warning').classList.add('hidden');
+                            try {
+                                await navigator.mediaDevices.getUserMedia({ video: true });
+                            } catch (e) {
+                                document.getElementById('ios-permission-warning').classList.remove('hidden');
+                                return;
+                            }
+                        }
                         const devices = await navigator.mediaDevices.enumerateDevices();
                         this.cameras = devices.filter(device => device.kind === 'videoinput');
                         if (this.cameras.length === 0) {
