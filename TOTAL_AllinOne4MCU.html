@@ -419,11 +419,7 @@
 
                 const initCameras = async () => {
                     try {
-                        // Get media stream to trigger permission prompt
-                        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-                        // Stop the stream immediately, we only needed it for permission
-                        stream.getTracks().forEach(track => track.stop());
-
+                        // getUserMedia로 미리 스트림을 열어 권한을 요청하는 부분 삭제
                         const devices = await navigator.mediaDevices.enumerateDevices();
                         this.cameras = devices.filter(device => device.kind === 'videoinput');
                         if (this.cameras.length === 0) {
