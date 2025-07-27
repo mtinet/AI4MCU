@@ -394,7 +394,7 @@
 
                 AppState.isRunning = true;
                 UIManager.updateStartButton('stop_recognition', false);
-                UIManager.elements.changeCameraBtn.style.display = 'inline-block';
+                UIManager.elements.changeCameraBtn.style.display = AppState.cameras.length > 1 ? 'inline-block' : 'none';
                 UIManager.elements.changeCameraBtn.disabled = AppState.cameras.length <= 1;
                 this.switchTab(AppState.activeTabId);
             },
@@ -415,9 +415,20 @@
             },
             async changeCamera() {
                 if (AppState.cameras.length > 1) {
-                    this.stopRecognition(); // 현재 인식을 중지
                     AppState.currentCameraIndex = (AppState.currentCameraIndex + 1) % AppState.cameras.length;
-                    await this.startRecognition(); // 새 카메라로 인식 시작
+                    const deviceId = AppState.cameras[AppState.currentCameraIndex].deviceId;
+                    
+                    if (AppState.camera) {
+                        // 스트림을 다시 시작하는 대신, 비디오 요소의 소스만 변경합니다.
+                        const stream = await navigator.mediaDevices.getUserMedia({ 
+                            video: { deviceId: { exact: deviceId } } 
+                        });
+                        UIManager.elements.video.srcObject = stream;
+                        UIManager.elements.video.play();
+                    } else {
+                        // 카메라가 없는 경우, 새로 시작합니다.
+                        await this.startRecognition();
+                    }
                 }
             },
             init() {

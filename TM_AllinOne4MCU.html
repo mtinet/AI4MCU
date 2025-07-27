@@ -302,14 +302,20 @@
                 currentCameraIndex = (currentCameraIndex + 1) % cameras.length;
                 selectedDeviceId = cameras[currentCameraIndex].deviceId;
                 document.getElementById('webcam-select').value = selectedDeviceId;
-                alert(`웹캠이 '${cameras[currentCameraIndex].label || `Webcam ${currentCameraIndex + 1}`}'(으)로 변경되었습니다. 진행 중인 작업을 중지합니다.`);
+                
                 if (isRunning.image) {
-                    stopImage();
-                    startImage();
-                }
-                if (isRunning.pose) {
-                    stopPose();
-                    startPose();
+                    await webcams.image.stop();
+                    webcams.image = new tmImage.Webcam(400, 400, true);
+                    await webcams.image.setup({ deviceId: selectedDeviceId });
+                    await webcams.image.play();
+                    const imageWebcamContainer = document.getElementById("image-webcam-container");
+                    imageWebcamContainer.innerHTML = '';
+                    imageWebcamContainer.appendChild(webcams.image.canvas);
+                } else if (isRunning.pose) {
+                    await webcams.pose.stop();
+                    webcams.pose = new tmPose.Webcam(400, 400, true);
+                    await webcams.pose.setup({ deviceId: selectedDeviceId });
+                    await webcams.pose.play();
                 }
             }
         }
@@ -438,6 +444,11 @@
                 return;
             }
             if (!models.pose) return;
+
+            if (cameras.length === 0) {
+                await setupWebcamSelector();
+            }
+
             const canvas = document.getElementById('canvas');
             poseCtx = canvas.getContext('2d');
             canvas.width = 400; canvas.height = 400;

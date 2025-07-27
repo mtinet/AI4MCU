@@ -458,7 +458,7 @@
 
                 AppState.isRunning = true;
                 UIManager.updateStartButton('stop_recognition', false);
-                UIManager.elements.changeCameraBtn.style.display = 'inline-block';
+                UIManager.elements.changeCameraBtn.style.display = AppState.cameras.length > 1 ? 'inline-block' : 'none';
                 UIManager.elements.changeCameraBtn.disabled = AppState.cameras.length <= 1;
                 this.switchTab(AppState.activeTabId);
             },
@@ -478,10 +478,22 @@
                 UIManager.resetAllDisplays();
             },
             async changeCamera() {
-                if (AppState.cameras.length > 1) {
-                    this.stopRecognition(); // 현재 인식을 중지
+                if (AppState.cameras.length > 1 && AppState.isRunning) {
                     AppState.currentCameraIndex = (AppState.currentCameraIndex + 1) % AppState.cameras.length;
-                    await this.startRecognition(); // 새 카메라로 인식 시작
+                    const deviceId = AppState.cameras[AppState.currentCameraIndex].deviceId;
+
+                    // Stop the current camera
+                    if (AppState.camera) {
+                        await AppState.camera.stop();
+                    }
+
+                    // Start the new camera without re-initializing everything
+                    AppState.camera = new Camera(UIManager.elements.video, {
+                        onFrame: async () => await AppState.hands.send({image: UIManager.elements.video}),
+                        width: CONFIG.CAMERA_WIDTH, height: CONFIG.CAMERA_HEIGHT,
+                        deviceId: { exact: deviceId }
+                    });
+                    await AppState.camera.start();
                 }
             },
             init() {

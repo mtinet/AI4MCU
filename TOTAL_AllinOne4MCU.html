@@ -419,6 +419,11 @@
 
                 const initCameras = async () => {
                     try {
+                        // Get media stream to trigger permission prompt
+                        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                        // Stop the stream immediately, we only needed it for permission
+                        stream.getTracks().forEach(track => track.stop());
+
                         const devices = await navigator.mediaDevices.enumerateDevices();
                         this.cameras = devices.filter(device => device.kind === 'videoinput');
                         if (this.cameras.length === 0) {
@@ -428,7 +433,7 @@
                             return;
                         }
                         await startStream(this.cameras[this.currentCameraIndex].deviceId);
-                        ui.changeCameraBtn.style.display = 'inline-block';
+                        ui.changeCameraBtn.style.display = this.cameras.length > 1 ? 'inline-block' : 'none';
                         ui.changeCameraBtn.disabled = this.cameras.length <= 1;
                     } catch (e) {
                         alert('카메라 목록을 가져오는 데 실패했습니다.');
@@ -443,7 +448,8 @@
             async changeCamera() {
                 if (this.cameras.length > 1) {
                     this.currentCameraIndex = (this.currentCameraIndex + 1) % this.cameras.length;
-                    await this.startWebcam();
+                    const deviceId = this.cameras[this.currentCameraIndex].deviceId;
+                    await this.startStream(deviceId);
                 }
             },
 
