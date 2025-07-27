@@ -224,6 +224,8 @@
         let poseCtx = null;
         let selectedDeviceId = null; 
         let sendOnce = true;
+        let lastSendTime = 0; // Added for rate limiting
+        const SEND_INTERVAL_MS = 200; // Added for rate limiting
 
         const ui = {
             connectSerialBtn: null,
@@ -292,11 +294,17 @@
         // ==================== 공통 함수 ====================
         
         async function sendToMCU(data) {
+            const now = Date.now();
             if (sendOnce) {
                 if (data === lastSentClass) return;
+            } else {
+                if (now - lastSendTime < SEND_INTERVAL_MS) {
+                    return; // 200ms 이내에는 전송하지 않음
+                }
             }
 
             lastSentClass = data;
+            lastSendTime = now; // 전송 시간 업데이트
             document.querySelector('.result-display').textContent = `인식 결과: ${data}`;
             const dataToSend = data + '\n';
             if (port?.writable) {
