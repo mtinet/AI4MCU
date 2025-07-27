@@ -22,4 +22,7 @@ WebSerial과 WebBLE를 이용해 다양한 인공지능 서비스 결과를 유/
 🌐 윈도우 컴퓨터, 안드로이드에서는 Chrome브라우저로 BLE통신을 사용할 수 있습니다.  
 🌐 애플 생태계(아이폰)에서는 Bluefy 브라우저를 사용해 웹페이지에 접속하면 BLE통신을 사용할 수 있습니다.  
 
-TM 테스트 링크: https://teachablemachine.withgoogle.com/models/-iyVG7y9w/  
+TM 테스트 링크: 
+- 이미지(보자기, 주먹): https://teachablemachine.withgoogle.com/models/-iyVG7y9w/  
+- 포즈:  
+- 오디오(오리, 사과): https://teachablemachine.withgoogle.com/models/ANbGmoscjL/  
