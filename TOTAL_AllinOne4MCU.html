@@ -91,6 +91,9 @@
                         <div id="loading-text" class="text-white absolute mt-20">AI 모델 로딩 중...</div>
                     </div>
                      <div id="result-display" class="mt-4 text-2xl font-bold text-center h-8"></div>
+                     <div class="text-center mt-6">
+                        <button id="change-camera-btn" class="btn btn-primary" style="display: none;">카메라 전환</button>
+                    </div>
                 </main>
                 
                 <div class="w-full max-w-2xl mx-auto mt-6 space-y-6">
@@ -230,7 +233,8 @@
             connectionStatus: document.getElementById('connectionStatus'),
             bleDeviceType: document.getElementById('ble-device-type'),
             sendOnceToggle: document.getElementById('send-once-toggle'),
-            sendModeStatus: document.getElementById('send-mode-status')
+            sendModeStatus: document.getElementById('send-mode-status'),
+            changeCameraBtn: document.getElementById('change-camera-btn')
         };
 
         const CONFIG = {
@@ -339,6 +343,8 @@
             modelsLoaded: false, 
             sendOnce: true,
             lastRecognizedLabel: null,
+            currentCameraIndex: 0,
+            cameras: [],
 
             async init() {
                 this.setupEventListeners();
@@ -359,6 +365,7 @@
                     this.sendOnce = e.target.checked;
                     this.updateSendModeStatus();
                 });
+                ui.changeCameraBtn.addEventListener('click', () => this.changeCamera());
             },
 
             updateSendModeStatus() {
@@ -390,16 +397,54 @@
             },
 
             startWebcam() {
-                navigator.mediaDevices.getUserMedia({ video: true, audio: false })
-                    .then(stream => {
+                const startStream = async (deviceId) => {
+                    if (this.videoStream) {
+                        this.videoStream.getTracks().forEach(track => track.stop());
+                    }
+                    try {
+                        const stream = await navigator.mediaDevices.getUserMedia({
+                            video: { deviceId: deviceId ? { exact: deviceId } : undefined },
+                            audio: false
+                        });
                         ui.video.srcObject = stream;
+                        this.videoStream = stream;
                         ui.video.addEventListener('play', () => this.startRecognitionLoop());
-                    })
-                    .catch(err => {
+                    } catch (err) {
                         alert("웹캠을 시작할 수 없습니다. 카메라 권한을 확인해주세요.");
                         ui.loader.style.display = 'none';
                         ui.loadingText.textContent = "카메라 권한이 필요합니다.";
-                    });
+                        console.error("웹캠 시작 오류:", err);
+                    }
+                };
+
+                const initCameras = async () => {
+                    try {
+                        const devices = await navigator.mediaDevices.enumerateDevices();
+                        this.cameras = devices.filter(device => device.kind === 'videoinput');
+                        if (this.cameras.length === 0) {
+                            alert('사용 가능한 카메라가 없습니다.');
+                            ui.loader.style.display = 'none';
+                            ui.loadingText.textContent = "사용 가능한 카메라가 없습니다.";
+                            return;
+                        }
+                        await startStream(this.cameras[this.currentCameraIndex].deviceId);
+                        ui.changeCameraBtn.style.display = 'inline-block';
+                        ui.changeCameraBtn.disabled = this.cameras.length <= 1;
+                    } catch (e) {
+                        alert('카메라 목록을 가져오는 데 실패했습니다.');
+                        ui.loader.style.display = 'none';
+                        ui.loadingText.textContent = "카메라 목록을 가져오는 데 실패했습니다.";
+                        console.error("카메라 목록 가져오기 오류:", e);
+                    }
+                };
+                initCameras();
+            },
+
+            async changeCamera() {
+                if (this.cameras.length > 1) {
+                    this.currentCameraIndex = (this.currentCameraIndex + 1) % this.cameras.length;
+                    await this.startWebcam();
+                }
             },
 
             loadRegisteredFaces() {

@@ -96,6 +96,7 @@
                 <button class="btn btn-primary" onclick="loadImageModel()" data-translate-key="load_model">모델 로드</button>
                 <button class="btn btn-primary" onclick="startImage()" id="startImageBtn" disabled data-translate-key="start">시작</button>
                 <button class="btn btn-danger" onclick="stopImage()" id="stopImageBtn" disabled data-translate-key="stop">정지</button>
+                <button class="btn btn-primary" onclick="changeCamera()" id="changeCameraImageBtn" style="display: none;" data-translate-key="change_camera">카메라 전환</button>
             </div>
             <div class="canvas-container">
                 <div id="image-webcam-container"></div>
@@ -116,6 +117,7 @@
                 <button class="btn btn-primary" onclick="loadPoseModel()" data-translate-key="load_model">모델 로드</button>
                 <button class="btn btn-primary" onclick="startPose()" id="startPoseBtn" disabled data-translate-key="start">시작</button>
                 <button class="btn btn-danger" onclick="stopPose()" id="stopPoseBtn" disabled data-translate-key="stop">정지</button>
+                <button class="btn btn-primary" onclick="changeCamera()" id="changeCameraPoseBtn" style="display: none;" data-translate-key="change_camera">카메라 전환</button>
             </div>
             <div class="canvas-container">
                 <canvas id="canvas"></canvas>
@@ -226,6 +228,8 @@
         let sendOnce = true;
         let lastSendTime = 0; // Added for rate limiting
         const SEND_INTERVAL_MS = 200; // Added for rate limiting
+        let currentCameraIndex = 0;
+        let cameras = [];
 
         const ui = {
             connectSerialBtn: null,
@@ -233,7 +237,9 @@
             connectBleBtn: null,
             disconnectBleBtn: null,
             sendOnceToggle: null,
-            sendModeStatus: null
+            sendModeStatus: null,
+            changeCameraImageBtn: null,
+            changeCameraPoseBtn: null
         };
         
         // 탭 전환
@@ -257,16 +263,16 @@
 
             try {
                 const devices = await navigator.mediaDevices.enumerateDevices();
-                const videoDevices = devices.filter(device => device.kind === 'videoinput');
+                cameras = devices.filter(device => device.kind === 'videoinput');
 
-                if (videoDevices.length === 0) {
+                if (cameras.length === 0) {
                     const option = document.createElement('option');
                     option.textContent = '웹캠을 찾을 수 없습니다.';
                     webcamSelect.appendChild(option);
                     return;
                 }
                 
-                videoDevices.forEach((device, index) => {
+                cameras.forEach((device, index) => {
                     const option = document.createElement('option');
                     option.value = device.deviceId;
                     option.textContent = device.label || `Webcam ${index + 1}`;
@@ -288,6 +294,23 @@
                 const option = document.createElement('option');
                 option.textContent = '웹캠 접근 권한이 필요합니다.';
                 webcamSelect.appendChild(option);
+            }
+        }
+
+        async function changeCamera() {
+            if (cameras.length > 1) {
+                currentCameraIndex = (currentCameraIndex + 1) % cameras.length;
+                selectedDeviceId = cameras[currentCameraIndex].deviceId;
+                document.getElementById('webcam-select').value = selectedDeviceId;
+                alert(`웹캠이 '${cameras[currentCameraIndex].label || `Webcam ${currentCameraIndex + 1}`}'(으)로 변경되었습니다. 진행 중인 작업을 중지합니다.`);
+                if (isRunning.image) {
+                    stopImage();
+                    startImage();
+                }
+                if (isRunning.pose) {
+                    stopPose();
+                    startPose();
+                }
             }
         }
 
@@ -348,6 +371,7 @@
         }
         
         async function startImage() {
+            async function startImage() {
             if (!models.image) return;
             webcams.image = new tmImage.Webcam(400, 400, true);
             await webcams.image.setup({ deviceId: selectedDeviceId });
@@ -359,7 +383,10 @@
             isRunning.image = true;
             document.getElementById('startImageBtn').disabled = true;
             document.getElementById('stopImageBtn').disabled = false;
+            ui.changeCameraImageBtn.style.display = 'inline-block';
+            ui.changeCameraImageBtn.disabled = cameras.length <= 1;
             loopImage();
+        }
         }
         
         function stopImage() {
@@ -395,7 +422,7 @@
             } catch (error) { alert(`모델 로딩 실패: ${error.message}`); }
         }
         
-        async function startPose() {
+                async function startPose() {
             if (!models.pose) return;
             const canvas = document.getElementById('canvas');
             poseCtx = canvas.getContext('2d');
@@ -406,6 +433,8 @@
             isRunning.pose = true;
             document.getElementById('startPoseBtn').disabled = true;
             document.getElementById('stopPoseBtn').disabled = false;
+            ui.changeCameraPoseBtn.style.display = 'inline-block';
+            ui.changeCameraPoseBtn.disabled = cameras.length <= 1;
             animationId = window.requestAnimationFrame(loopPose);
         }
         
@@ -574,6 +603,8 @@
             ui.disconnectBleBtn = document.querySelector('button[onclick="disconnectBLE()"]');
             ui.sendOnceToggle = document.getElementById('send-once-toggle');
             ui.sendModeStatus = document.getElementById('send-mode-status');
+            ui.changeCameraImageBtn = document.getElementById('changeCameraImageBtn');
+            ui.changeCameraPoseBtn = document.getElementById('changeCameraPoseBtn');
             
             setupWebcamSelector();
             updateConnectionStatus();

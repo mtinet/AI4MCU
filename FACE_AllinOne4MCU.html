@@ -73,6 +73,7 @@
             
             <div id="start-button-container" class="text-center mt-6">
                 <button id="start-btn" class="btn btn-primary text-lg" data-translate-key="start_recognition">인식 시작</button>
+                <button id="change-camera-btn" class="btn btn-primary" style="display: none;" data-translate-key="change_camera">카메라 전환</button>
             </div>
 
             <div class="w-full max-w-lg mt-6">
@@ -168,6 +169,7 @@
                     canvas: document.getElementById('output_canvas'),
                     canvasCtx: document.getElementById('output_canvas').getContext('2d'),
                     startBtn: document.getElementById('start-btn'),
+                    changeCameraBtn: document.getElementById('change-camera-btn'),
                     connectSerialBtn: document.getElementById('connectSerialBtn'),
                     disconnectSerialBtn: document.getElementById('disconnectSerialBtn'),
                     connectBleBtn: document.getElementById('connectBleBtn'),
@@ -291,7 +293,7 @@
             }
         };
 
-        const AppState = { isRunning: false, activeTabId: 'face-coords', leftEyeBlinkCounter: 0, rightEyeBlinkCounter: 0, faceMesh: null, camera: null, lastSendTime: 0, sendOnce: true, lastSentData: null };
+        const AppState = { isRunning: false, activeTabId: 'face-coords', leftEyeBlinkCounter: 0, rightEyeBlinkCounter: 0, faceMesh: null, camera: null, lastSendTime: 0, sendOnce: true, lastSentData: null, currentCameraIndex: 0, cameras: [] };
 
         const FaceRecognitionApp = {
             onResults(results) {
@@ -352,22 +354,58 @@
             async startRecognition() {
                 if (AppState.isRunning) return;
                 UIManager.updateStartButton('loading_model', true);
+
+                if (AppState.cameras.length === 0) {
+                    try {
+                        const devices = await navigator.mediaDevices.enumerateDevices();
+                        AppState.cameras = devices.filter(device => device.kind === 'videoinput');
+                        if (AppState.cameras.length === 0) {
+                            alert('사용 가능한 카메라가 없습니다.');
+                            UIManager.updateStartButton('start_recognition', false);
+                            return;
+                        }
+                    } catch (e) {
+                        alert('카메라 목록을 가져오는 데 실패했습니다.');
+                        UIManager.updateStartButton('start_recognition', false);
+                        return;
+                    }
+                }
+
                 AppState.faceMesh = new FaceMesh({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`});
                 await AppState.faceMesh.setOptions({maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5});
                 AppState.faceMesh.onResults(this.onResults);
-                AppState.camera = new Camera(UIManager.elements.video, {
-                    onFrame: async () => await AppState.faceMesh.send({image: UIManager.elements.video}),
-                    width: CONFIG.CAMERA_WIDTH, height: CONFIG.CAMERA_HEIGHT
-                });
-                await AppState.camera.start();
+
+                const startCamera = async (deviceId) => {
+                    if (AppState.camera) {
+                        await AppState.camera.stop();
+                    }
+                    AppState.camera = new Camera(UIManager.elements.video, {
+                        onFrame: async () => await AppState.faceMesh.send({image: UIManager.elements.video}),
+                        width: CONFIG.CAMERA_WIDTH, height: CONFIG.CAMERA_HEIGHT,
+                        deviceId: deviceId ? { exact: deviceId } : undefined
+                    });
+                    await AppState.camera.start();
+                };
+
+                await startCamera(AppState.cameras[AppState.currentCameraIndex].deviceId);
+
                 AppState.isRunning = true;
                 UIManager.updateStartButton('recognizing', false);
+                UIManager.elements.changeCameraBtn.style.display = 'inline-block';
+                UIManager.elements.changeCameraBtn.disabled = AppState.cameras.length <= 1;
                 this.switchTab(AppState.activeTabId);
+            },
+            async changeCamera() {
+                if (AppState.cameras.length > 1) {
+                    AppState.currentCameraIndex = (AppState.currentCameraIndex + 1) % AppState.cameras.length;
+                    await this.startRecognition();
+                }
             },
             init() {
                 UIManager.init();
                 UIManager.updateSendModeStatus(AppState.sendOnce);
                 UIManager.elements.startBtn.addEventListener('click', () => this.startRecognition());
+                UIManager.elements.changeCameraBtn.addEventListener('click', () => this.changeCamera());
                 UIManager.elements.connectSerialBtn.addEventListener('click', () => ConnectionManager.connectSerial());
                 UIManager.elements.disconnectSerialBtn.addEventListener('click', () => ConnectionManager.disconnectSerial());
                 UIManager.elements.sendOnceToggle.addEventListener('change', (e) => {
