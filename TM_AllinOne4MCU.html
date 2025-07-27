@@ -311,11 +311,13 @@
                     const imageWebcamContainer = document.getElementById("image-webcam-container");
                     imageWebcamContainer.innerHTML = '';
                     imageWebcamContainer.appendChild(webcams.image.canvas);
+                    loopImage();
                 } else if (isRunning.pose) {
                     await webcams.pose.stop();
                     webcams.pose = new tmPose.Webcam(400, 400, true);
                     await webcams.pose.setup({ deviceId: selectedDeviceId });
                     await webcams.pose.play();
+                    loopPose();
                 }
             }
         }

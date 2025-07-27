@@ -482,15 +482,18 @@
                     AppState.currentCameraIndex = (AppState.currentCameraIndex + 1) % AppState.cameras.length;
                     const deviceId = AppState.cameras[AppState.currentCameraIndex].deviceId;
 
-                    // Stop the current camera
                     if (AppState.camera) {
                         await AppState.camera.stop();
                     }
 
-                    // Start the new camera without re-initializing everything
                     AppState.camera = new Camera(UIManager.elements.video, {
-                        onFrame: async () => await AppState.hands.send({image: UIManager.elements.video}),
-                        width: CONFIG.CAMERA_WIDTH, height: CONFIG.CAMERA_HEIGHT,
+                        onFrame: async () => {
+                            if (AppState.hands) {
+                                await AppState.hands.send({image: UIManager.elements.video});
+                            }
+                        },
+                        width: CONFIG.CAMERA_WIDTH,
+                        height: CONFIG.CAMERA_HEIGHT,
                         deviceId: { exact: deviceId }
                     });
                     await AppState.camera.start();

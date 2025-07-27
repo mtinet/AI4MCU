@@ -449,7 +449,23 @@
                 if (this.cameras.length > 1) {
                     this.currentCameraIndex = (this.currentCameraIndex + 1) % this.cameras.length;
                     const deviceId = this.cameras[this.currentCameraIndex].deviceId;
-                    await this.startStream(deviceId);
+                    
+                    if (this.videoStream) {
+                        this.videoStream.getTracks().forEach(track => track.stop());
+                    }
+
+                    try {
+                        const stream = await navigator.mediaDevices.getUserMedia({
+                            video: { deviceId: { exact: deviceId } },
+                            audio: false
+                        });
+                        ui.video.srcObject = stream;
+                        this.videoStream = stream;
+                        await ui.video.play();
+                    } catch (err) {
+                        console.error("카메라 전환 오류:", err);
+                        alert("카메라를 전환하는 데 실패했습니다.");
+                    }
                 }
             },
 
