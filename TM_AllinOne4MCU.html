@@ -371,30 +371,40 @@
         }
         
         async function startImage() {
-            async function startImage() {
+            if (isRunning.image) {
+                stopImage();
+                return;
+            }
             if (!models.image) return;
             webcams.image = new tmImage.Webcam(400, 400, true);
             await webcams.image.setup({ deviceId: selectedDeviceId });
             await webcams.image.play();
+            
+            if (cameras.length === 0) {
+                await setupWebcamSelector();
+            }
+
             const imageWebcamContainer = document.getElementById("image-webcam-container");
             imageWebcamContainer.innerHTML = '';
             imageWebcamContainer.appendChild(webcams.image.canvas);
             webcams.image.canvas.className = 'webcam-canvas';
             isRunning.image = true;
-            document.getElementById('startImageBtn').disabled = true;
-            document.getElementById('stopImageBtn').disabled = false;
+            document.getElementById('startImageBtn').textContent = '인식 중지';
+            document.getElementById('startImageBtn').disabled = false;
+            document.getElementById('stopImageBtn').disabled = true;
             ui.changeCameraImageBtn.style.display = 'inline-block';
             ui.changeCameraImageBtn.disabled = cameras.length <= 1;
             loopImage();
-        }
         }
         
         function stopImage() {
             isRunning.image = false;
             if (animationId) { window.cancelAnimationFrame(animationId); animationId = null; }
             if (webcams.image) { webcams.image.stop(); document.getElementById("image-webcam-container").innerHTML = ''; }
+            document.getElementById('startImageBtn').textContent = '시작';
             document.getElementById('startImageBtn').disabled = false;
             document.getElementById('stopImageBtn').disabled = true;
+            ui.changeCameraImageBtn.style.display = 'none';
         }
         
         async function loopImage() {
@@ -423,6 +433,10 @@
         }
         
                 async function startPose() {
+            if (isRunning.pose) {
+                stopPose();
+                return;
+            }
             if (!models.pose) return;
             const canvas = document.getElementById('canvas');
             poseCtx = canvas.getContext('2d');
@@ -431,8 +445,9 @@
             await webcams.pose.setup({ deviceId: selectedDeviceId });
             await webcams.pose.play();
             isRunning.pose = true;
-            document.getElementById('startPoseBtn').disabled = true;
-            document.getElementById('stopPoseBtn').disabled = false;
+            document.getElementById('startPoseBtn').textContent = '인식 중지';
+            document.getElementById('startPoseBtn').disabled = false;
+            document.getElementById('stopPoseBtn').disabled = true;
             ui.changeCameraPoseBtn.style.display = 'inline-block';
             ui.changeCameraPoseBtn.disabled = cameras.length <= 1;
             animationId = window.requestAnimationFrame(loopPose);
@@ -470,8 +485,10 @@
             isRunning.pose = false;
             if (animationId) { window.cancelAnimationFrame(animationId); animationId = null; }
             if (webcams.pose) { webcams.pose.stop(); poseCtx.clearRect(0, 0, poseCtx.canvas.width, poseCtx.canvas.height); }
+            document.getElementById('startPoseBtn').textContent = '시작';
             document.getElementById('startPoseBtn').disabled = false;
             document.getElementById('stopPoseBtn').disabled = true;
+            ui.changeCameraPoseBtn.style.display = 'none';
         }
         
         // ==================== 음성 인식 ====================

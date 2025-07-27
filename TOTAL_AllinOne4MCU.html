@@ -349,9 +349,9 @@
             async init() {
                 this.setupEventListeners();
                 this.updateSendModeStatus();
-                this.startWebcam();
                 await this.loadModels();
                 this.loadRegisteredFaces();
+                this.startWebcam();
             },
 
             setupEventListeners() {
