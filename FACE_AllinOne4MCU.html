@@ -322,7 +322,25 @@
                         webcamSelect.appendChild(option);
                     });
 
-                    AppState.selectedDeviceId = webcamSelect.value;
+                    // Try to select the environment (back) camera first on mobile devices
+                    let preferredDeviceId = null;
+                    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                        try {
+                            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                            const track = stream.getVideoTracks()[0];
+                            preferredDeviceId = track.getSettings().deviceId;
+                            track.stop(); // Stop the stream immediately after getting deviceId
+                        } catch (e) {
+                            console.warn("후면 카메라 접근 실패 또는 없음, 전면 카메라 시도:", e);
+                        }
+                    }
+
+                    if (preferredDeviceId) {
+                        AppState.selectedDeviceId = preferredDeviceId;
+                    } else {
+                        AppState.selectedDeviceId = webcamSelect.value; // Default to first available if no preferred
+                    }
+                    webcamSelect.value = AppState.selectedDeviceId;
 
                     webcamSelect.addEventListener('change', async (e) => {
                         AppState.selectedDeviceId = e.target.value;
