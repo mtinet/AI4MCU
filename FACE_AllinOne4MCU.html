@@ -370,7 +370,11 @@
                     AppState.currentCameraIndex = index;
 
                     const label = (cam.label || '').toLowerCase();
-                    AppState.isMirror = label.includes('front') || label.includes('user') || label.includes('webcam');
+                    if (AppState.didRequestPermission) {
+                        AppState.isMirror = true;
+                    } else {
+                        AppState.isMirror = label.includes('front') || label.includes('user') || label.includes('webcam');
+                    }
 
                     const stream = await navigator.mediaDevices.getUserMedia({
                         video: { deviceId: deviceId ? { exact: deviceId } : undefined },
