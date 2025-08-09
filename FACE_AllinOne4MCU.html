@@ -60,6 +60,18 @@
                 <div class="mb-2">카메라 권한이 허용되지 않았습니다.<br>설정 &gt; Safari &gt; 카메라 허용을 확인하거나, 아래 버튼을 눌러 권한을 다시 요청하세요.</div>
                 <button id="ios-permission-retry" class="btn btn-primary">권한 재요청</button>
             </div>
+            
+            <div id="generic-permission-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50">
+                <div class="bg-white rounded-lg shadow-2xl p-6 md:p-8 max-w-sm w-full mx-4">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4">카메라 권한 안내</h3>
+                    <p class="text-gray-600 mb-6">서비스를 사용하려면 카메라 접근 권한이 필요합니다. 브라우저가 권한을 요청하면 '허용'을 선택해주세요.</p>
+                    <p class="text-sm text-gray-500 mb-6">만약 실수로 '차단'했다면, 주소창의 자물쇠(🔒) 아이콘을 클릭하여 권한을 재설정할 수 있습니다.</p>
+                    <div class="flex justify-end space-x-4">
+                        <button id="generic-permission-close" class="btn bg-gray-200 text-gray-700 hover:bg-gray-300">닫기</button>
+                        <button id="generic-permission-retry" class="btn btn-primary">권한 요청하기</button>
+                    </div>
+                </div>
+            </div>
             <div class="w-full max-w-3xl mb-6">
                 <div class="tabs rounded-lg overflow-hidden border">
                     <button class="tab active" onclick="FaceRecognitionApp.switchTab('face-coords')" data-translate-key="tab_face_coords">📍 미간 좌표</button>
@@ -197,7 +209,12 @@
                     blinkDisplay: document.getElementById('blink-display'), leftBlink: document.getElementById('left-blink-status'), rightBlink: document.getElementById('right-blink-status'), bothBlink: document.getElementById('both-blink-status'),
                     faceCountDisplay: document.getElementById('face-count-display'), faceCountValue: document.getElementById('face-count-value'),
                     faceSizeDisplay: document.getElementById('face-size-display'), faceWidth: document.getElementById('face-width-value'), faceHeight: document.getElementById('face-height-value'),
-                    sendOnceToggle: document.getElementById('send-once-toggle'), sendModeStatus: document.getElementById('send-mode-status')
+                    sendOnceToggle: document.getElementById('send-once-toggle'), sendModeStatus: document.getElementById('send-mode-status'),
+                    iosPermissionWarning: document.getElementById('ios-permission-warning'),
+                    iosPermissionRetry: document.getElementById('ios-permission-retry'),
+                    genericPermissionModal: document.getElementById('generic-permission-modal'),
+                    genericPermissionRetry: document.getElementById('generic-permission-retry'),
+                    genericPermissionClose: document.getElementById('generic-permission-close')
                 };
             },
             resetAll() {
@@ -336,41 +353,60 @@
                 if (AppState.videoStream) {
                     AppState.videoStream.getTracks().forEach(track => track.stop());
                 }
+                
                 try {
-                    if (!AppState.cameras.length) {
-                        AppState.cameras = await getCamerasWithIOSSupport();
+                    if (AppState.cameras.length === 0) {
+                        const devices = await navigator.mediaDevices.enumerateDevices();
+                        const cameras = devices.filter(device => device.kind === 'videoinput');
+                        if (cameras.length === 0) throw new Error('No cameras found.');
+                        AppState.cameras = cameras;
                     }
+
                     const cam = AppState.cameras[index];
-                    const deviceId = cam?.deviceId;
-                    if (!deviceId) throw new Error('카메라를 찾을 수 없습니다.');
+                    if (!cam) throw new Error('Selected camera not found.');
+                    
+                    const deviceId = cam.deviceId;
                     AppState.selectedDeviceId = deviceId;
                     AppState.currentCameraIndex = index;
-                    // 전면/후면/OBS 등 판별
+
                     const label = (cam.label || '').toLowerCase();
-                    if (label.includes('front') || label.includes('user') || label.includes('webcam')) {
-                        AppState.isMirror = true;
-                    } else {
-                        AppState.isMirror = false;
-                    }
+                    AppState.isMirror = label.includes('front') || label.includes('user') || label.includes('webcam');
+
                     const stream = await navigator.mediaDevices.getUserMedia({
-                        video: { deviceId: { exact: deviceId } },
+                        video: { deviceId: deviceId ? { exact: deviceId } : undefined },
                         audio: false
                     });
-                    const video = UIManager.elements.video;
-                    video.srcObject = stream;
+
+                    UIManager.elements.video.srcObject = stream;
                     AppState.videoStream = stream;
-                    await video.play();
+                    await UIManager.elements.video.play();
+                    
+                    const devicesWithLabels = await navigator.mediaDevices.enumerateDevices();
+                    AppState.cameras = devicesWithLabels.filter(device => device.kind === 'videoinput');
+
                 } catch (e) {
-                    alert('카메라를 열 수 없습니다: ' + e.name + (e.message ? ' - ' + e.message : ''));
+                    if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
+                        if (isIOS()) {
+                            UIManager.elements.iosPermissionWarning.classList.remove('hidden');
+                        } else {
+                            UIManager.elements.genericPermissionModal.classList.remove('hidden');
+                        }
+                    } else {
+                        alert(`카메라를 열 수 없습니다: ${e.name} - ${e.message}`);
+                    }
+                    throw e; 
                 }
             },
-            async changeCameraByIndex(index) {
-                await this.startVideoStreamByIndex(index);
-            },
+
             async changeCamera() {
                 if (AppState.cameras.length > 1) {
                     AppState.currentCameraIndex = (AppState.currentCameraIndex + 1) % AppState.cameras.length;
-                    await this.startVideoStreamByIndex(AppState.currentCameraIndex);
+                    try {
+                        await this.startVideoStreamByIndex(AppState.currentCameraIndex);
+                    } catch (e) {
+                        console.error("Failed to change camera:", e);
+                        UIManager.updateStartButton('start_recognition', false);
+                    }
                 }
             },
             async startRecognition() {
@@ -378,19 +414,7 @@
                     this.stopRecognition();
                     return;
                 }
-                // iOS 권한 분기
-                if (isIOS()) {
-                    // iOS에서는 권한 요청 및 카메라 확인을 먼저 한다
-                    document.getElementById('ios-permission-warning').classList.add('hidden');
-                    const cameras = await getCamerasWithIOSSupport();
-                    if (!cameras) {
-                        // 권한 거부됨
-                        document.getElementById('ios-permission-warning').classList.remove('hidden');
-                        UIManager.updateStartButton('start_recognition', false);
-                        return;
-                    }
-                    AppState.cameras = cameras;
-                }
+
                 UIManager.updateStartButton('loading_model', true);
 
                 if (!AppState.faceMesh) {
@@ -399,23 +423,13 @@
                     AppState.faceMesh.onResults(this.onResults);
                 }
 
-                if (AppState.cameras.length === 0) {
-                    try {
-                        const devices = await navigator.mediaDevices.enumerateDevices();
-                        AppState.cameras = devices.filter(device => device.kind === 'videoinput');
-                        if (AppState.cameras.length === 0) {
-                            alert('사용 가능한 카메라가 없습니다.');
-                            UIManager.updateStartButton('start_recognition', false);
-                            return;
-                        }
-                    } catch (e) {
-                        alert('카메라 목록을 가져오는 데 실패했습니다.');
-                        UIManager.updateStartButton('start_recognition', false);
-                        return;
-                    }
+                try {
+                    await this.startVideoStreamByIndex(AppState.currentCameraIndex);
+                } catch (e) {
+                    console.error("Could not start camera.", e);
+                    UIManager.updateStartButton('start_recognition', false);
+                    return;
                 }
-
-                await this.startVideoStreamByIndex(AppState.currentCameraIndex);
 
                 AppState.isRunning = true;
                 UIManager.updateStartButton('stop_recognition', false);
@@ -423,10 +437,10 @@
                 UIManager.elements.changeCameraBtn.disabled = AppState.cameras.length <= 1;
                 this.switchTab(AppState.activeTabId);
 
-                // 인식 루프 시작
                 this._recognitionLoopActive = true;
                 this.recognitionLoop();
             },
+
             stopRecognition() {
                 if (!AppState.isRunning) return;
                 this._recognitionLoopActive = false;
@@ -434,10 +448,8 @@
                     AppState.videoStream.getTracks().forEach(track => track.stop());
                     AppState.videoStream = null;
                 }
-                if (AppState.faceMesh) {
-                    AppState.faceMesh.close();
-                    AppState.faceMesh = null;
-                }
+                
+                AppState.didRequestPermission = false; // Reset flag
                 AppState.isRunning = false;
                 UIManager.updateStartButton('start_recognition', false);
                 UIManager.elements.changeCameraBtn.style.display = 'none';
@@ -518,14 +530,27 @@
                     AppState.sendOnce = e.target.checked;
                     UIManager.updateSendModeStatus(AppState.sendOnce);
                 });
-                // iOS 권한 재요청 버튼
-                const iosRetryBtn = document.getElementById('ios-permission-retry');
-                if (iosRetryBtn) {
-                    iosRetryBtn.addEventListener('click', async () => {
-                        document.getElementById('ios-permission-warning').classList.add('hidden');
-                        await FaceRecognitionApp.startRecognition();
+                
+                if (UIManager.elements.iosPermissionRetry) {
+                    UIManager.elements.iosPermissionRetry.addEventListener('click', () => {
+                        UIManager.elements.iosPermissionWarning.classList.add('hidden');
+                        this.startRecognition();
                     });
                 }
+
+                if (UIManager.elements.genericPermissionClose) {
+                    UIManager.elements.genericPermissionClose.addEventListener('click', () => {
+                        UIManager.elements.genericPermissionModal.classList.add('hidden');
+                    });
+                }
+
+                if (UIManager.elements.genericPermissionRetry) {
+                    UIManager.elements.genericPermissionRetry.addEventListener('click', () => {
+                        UIManager.elements.genericPermissionModal.classList.add('hidden');
+                        this.startRecognition();
+                    });
+                }
+
                 window.FaceRecognitionApp = this;
                 window.ConnectionManager = ConnectionManager;
             }
