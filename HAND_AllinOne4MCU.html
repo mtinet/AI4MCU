@@ -547,6 +547,7 @@
       currentCameraIndex: 0,
       isMirror: true,
       didRequestPermission: false,
+      forceMirrorManual: false,
     };
 
     const HandRecognitionApp = {
@@ -569,10 +570,17 @@
           AppState.currentCameraIndex = index;
 
           const label = (cam.label || '').toLowerCase();
-          if (AppState.didRequestPermission) {
-            AppState.isMirror = true; // 권한 요청 후 기본 미러 on (전면 기준)
+          const hasLabel = !!label;
+          if (AppState.forceMirrorManual) {
+            AppState.isMirror = true; // 수동 권한 안내 경로: 강제 미러
+          } else if (!hasLabel) {
+            AppState.isMirror = true; // 라벨이 없으면 전면으로 가정하여 미러
+          } else if (/(back|rear|environment)/.test(label)) {
+            AppState.isMirror = false; // 후면/환경 카메라는 미러 해제
+          } else if (/(front|user|webcam|integrated|built-in)/.test(label)) {
+            AppState.isMirror = true; // 전면/통합 웹캠은 미러
           } else {
-            AppState.isMirror = label.includes('front') || label.includes('user') || label.includes('webcam');
+            AppState.isMirror = true; // 기본값: 미러
           }
 
           const stream = await navigator.mediaDevices.getUserMedia({
@@ -586,8 +594,18 @@
 
           const devicesWithLabels = await navigator.mediaDevices.enumerateDevices();
           AppState.cameras = devicesWithLabels.filter((d) => d.kind === 'videoinput');
+          // 라벨이 갱신된 뒤에도 미러 정책 재평가 (수동 강제 미러가 아니면)
+          const camWithLabel = AppState.cameras[AppState.currentCameraIndex];
+          if (camWithLabel && !AppState.forceMirrorManual) {
+            const lbl = (camWithLabel.label || '').toLowerCase();
+            if (!lbl) AppState.isMirror = true;
+            else if (/(back|rear|environment)/.test(lbl)) AppState.isMirror = false;
+            else AppState.isMirror = true;
+          }
         } catch (e) {
           if (e.name === 'NotAllowedError' || e.name === 'PermissionDeniedError') {
+            // 수동 권한 부여 경로에서는 강제 미러 모드 활성화
+            AppState.forceMirrorManual = true;
             if (isIOS()) UIManager.elements.iosPermissionWarning.classList.remove('hidden');
             else UIManager.elements.genericPermissionModal.classList.remove('hidden');
           } else {
@@ -650,6 +668,7 @@
           AppState.videoStream = null;
         }
         AppState.didRequestPermission = false; // 얼굴 페이지와 동일 동작
+        AppState.forceMirrorManual = false; // 수동 권한 경로 해제
         AppState.isRunning = false;
         UIManager.updateStartButton('start_recognition', false);
         UIManager.elements.changeCameraBtn.style.display = 'none';
