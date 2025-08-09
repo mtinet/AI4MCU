@@ -45,6 +45,10 @@
         .status.disconnected { background: #ffebee; color: #c62828; }
         #canvas-container { position: relative; width: 100%; max-width: 640px; aspect-ratio: 4 / 3; }
         #video, #canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+
+        /* file:// 전용 미러 표시 */
+        .mirror { transform: scaleX(-1); transform-origin: center; }
+
         .loader { border: 5px solid #f3f3f3; border-top: 5px solid var(--primary); border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         .input-box { border: 1px solid var(--border); padding: 10px; border-radius: 8px; width:100%; }
@@ -211,6 +215,12 @@
     <script>
         // 우클릭 방지
         document.addEventListener('contextmenu', event => event.preventDefault());
+
+        // file:// 판별
+        function isFileOrigin() {
+            return location.protocol === 'file:';
+        }
+
         // Tab switching function
         function switchTab(tabId) {
             document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
@@ -358,9 +368,17 @@
             async init() {
                 this.setupEventListeners();
                 this.updateSendModeStatus();
+
+                // ★ file://로 열렸으면 비디오/캔버스 좌우반전
+                if (isFileOrigin()) {
+                    ui.video.classList.add('mirror');
+                    ui.canvas.classList.add('mirror');
+                }
+
                 await this.loadModels();
                 this.loadRegisteredFaces();
                 this.startWebcam();
+
                 // iOS 권한 재요청 버튼
                 const iosRetryBtn = document.getElementById('ios-permission-retry');
                 if (iosRetryBtn) {
