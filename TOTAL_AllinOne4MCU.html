@@ -102,6 +102,7 @@
                      <div id="result-display" class="mt-4 text-2xl font-bold text-center h-8"></div>
                      <div class="text-center mt-6">
                         <button id="change-camera-btn" class="btn btn-primary" style="display: none;">카메라 전환</button>
+                        <button id="toggle-mirror-btn" class="btn btn-primary" style="display: none;">좌우반전</button>
                     </div>
                 </main>
                 
@@ -253,7 +254,8 @@
             bleDeviceType: document.getElementById('ble-device-type'),
             sendOnceToggle: document.getElementById('send-once-toggle'),
             sendModeStatus: document.getElementById('send-mode-status'),
-            changeCameraBtn: document.getElementById('change-camera-btn')
+            changeCameraBtn: document.getElementById('change-camera-btn'),
+            toggleMirrorBtn: document.getElementById('toggle-mirror-btn')
         };
 
         const CONFIG = {
@@ -369,11 +371,9 @@
                 this.setupEventListeners();
                 this.updateSendModeStatus();
 
-                // ★ file://로 열렸으면 비디오/캔버스 좌우반전
-                if (isFileOrigin()) {
-                    ui.video.classList.add('mirror');
-                    ui.canvas.classList.add('mirror');
-                }
+                // ★ 영상 좌우반전
+                ui.video.classList.add('mirror');
+                ui.canvas.classList.add('mirror');
 
                 await this.loadModels();
                 this.loadRegisteredFaces();
@@ -401,6 +401,10 @@
                     this.updateSendModeStatus();
                 });
                 ui.changeCameraBtn.addEventListener('click', () => this.changeCamera());
+                ui.toggleMirrorBtn.addEventListener('click', () => {
+                    ui.video.classList.toggle('mirror');
+                    ui.canvas.classList.toggle('mirror');
+                });
             },
 
             updateSendModeStatus() {
@@ -482,6 +486,7 @@
                         }
                         await startStream(this.cameras[this.currentCameraIndex].deviceId);
                         ui.changeCameraBtn.style.display = this.cameras.length > 1 ? 'inline-block' : 'none';
+                        ui.toggleMirrorBtn.style.display = 'inline-block';
                         ui.changeCameraBtn.disabled = this.cameras.length <= 1;
                     } catch (e) {
                         alert('카메라 목록을 가져오는 데 실패했습니다.');

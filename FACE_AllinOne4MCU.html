@@ -91,6 +91,7 @@
             <div id="start-button-container" class="text-center mt-6">
                 <button id="start-btn" class="btn btn-primary text-lg" data-translate-key="start_recognition">인식 시작</button>
                 <button id="change-camera-btn" class="btn btn-primary" style="display: none;" data-translate-key="change_camera">카메라 전환</button>
+                <button id="toggle-mirror-btn" class="btn btn-primary" style="display: none;">좌우반전</button>
             </div>
 
             <div class="w-full max-w-lg mt-6">
@@ -281,6 +282,7 @@
                     canvasCtx: document.getElementById('output_canvas').getContext('2d'),
                     startBtn: document.getElementById('start-btn'),
                     changeCameraBtn: document.getElementById('change-camera-btn'),
+                    toggleMirrorBtn: document.getElementById('toggle-mirror-btn'),
                     connectSerialBtn: document.getElementById('connectSerialBtn'),
                     disconnectSerialBtn: document.getElementById('disconnectSerialBtn'),
                     connectBleBtn: document.getElementById('connectBleBtn'),
@@ -467,12 +469,7 @@
 
                     const label = (cam.label || '').toLowerCase();
 
-                    // ★ 핵심 변경: 파일로 직접 열었을 땐 항상 미러, 서버(HTTP/HTTPS)에선 라벨 기반 판별 유지
-                    if (isFileOrigin()) {
-                        AppState.isMirror = true;
-                    } else {
-                        AppState.isMirror = label.includes('front') || label.includes('user') || label.includes('webcam');
-                    }
+                    
 
                     const stream = await navigator.mediaDevices.getUserMedia({
                         video: { deviceId: deviceId ? { exact: deviceId } : undefined },
@@ -538,6 +535,7 @@
                 UIManager.updateStartButton('stop_recognition', false);
                 UIManager.elements.changeCameraBtn.style.display = AppState.cameras.length > 1 ? 'inline-block' : 'none';
                 UIManager.elements.changeCameraBtn.disabled = AppState.cameras.length <= 1;
+                UIManager.elements.toggleMirrorBtn.style.display = 'inline-block';
                 this.switchTab(AppState.activeTabId);
 
                 this._recognitionLoopActive = true;
@@ -555,6 +553,7 @@
                 AppState.isRunning = false;
                 UIManager.updateStartButton('start_recognition', false);
                 UIManager.elements.changeCameraBtn.style.display = 'none';
+                UIManager.elements.toggleMirrorBtn.style.display = 'none';
                 UIManager.resetAll();
             },
 
@@ -642,6 +641,7 @@
                 UIManager.updateSendModeStatus(AppState.sendOnce);
                 UIManager.elements.startBtn.addEventListener('click', () => this.startRecognition());
                 UIManager.elements.changeCameraBtn.addEventListener('click', () => this.changeCamera());
+                UIManager.elements.toggleMirrorBtn.addEventListener('click', () => { AppState.isMirror = !AppState.isMirror; });
                 UIManager.elements.connectSerialBtn.addEventListener('click', () => ConnectionManager.connectSerial());
                 UIManager.elements.disconnectSerialBtn.addEventListener('click', () => ConnectionManager.disconnectSerial());
                 UIManager.elements.sendOnceToggle.addEventListener('change', (e) => {

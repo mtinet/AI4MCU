@@ -324,8 +324,8 @@
         container.appendChild(webcams.image.canvas);
       }
 
-      // 기본: 파일로 열면 ON, 서버에서는 OFF (원하면 true로 고정도 가능)
-      isMirrorImage = isFileOrigin();
+      // 기본: 좌우 반전 비활성화
+      isMirrorImage = false;
       applyMirrorImage();
 
       isRunning.image=true;
@@ -429,7 +429,7 @@
       // 시작 시 캔버스 보이기 (← 추가)
       document.getElementById('canvas').style.display = 'block';
 
-      isMirrorPose = isFileOrigin();
+      isMirrorPose = true; // 좌우반전 활성화
       applyMirrorPose();
 
       isRunning.pose=true;
