@@ -31,8 +31,9 @@ TM 테스트 링크
 PicoW 연결
 - picoW/bluetoothConnect.py 파일을 Raspberry Pi Pico W에 업로드 하고 실행합니다.  
 - https://mtinet.github.io/AI4MCU 사이트의 각 솔루션들에 들어가서 '블루투스 장치 유형' 드롭다운을 누릅니다.
-- 일반 UART장치를 선택하고 '블루투스 연결' 버튼을 누릅니다.
+- 일반 UART장치(Raspberry Pi Pico W, Arduino, ESP32 등)를 선택하고 '블루투스 연결' 버튼을 누릅니다.
 - 페어링 장치가 보이는 창에서 켜져 있는 Pico W의 블루투스 이름을 선택합니다.
 - 학습된 결과에 따라 데이터가 잘 보내지는지 확인합니다.
 - 프로젝트를 개선합니다.  
+
 
