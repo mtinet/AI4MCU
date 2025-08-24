@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 원격 조종기 for MCU</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root { --primary: #2196F3; --primary-dark: #1976D2; --danger: #f44336; --bg: #f0f2f5; --card: white; --text: #333; --border: #ddd; }
+        body { font-family: 'Noto Sans KR', sans-serif; background-color: var(--bg); }
+        .btn { padding: 12px 24px; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.3s; margin-right: 10px; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+        .btn:disabled { background-color: #9ca3af; cursor: not-allowed; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-primary:hover:not(:disabled) { background: var(--primary-dark); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(33, 150, 243, 0.3); }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-danger:hover { background: #d32f2f; }
+        .status { display: inline-block; padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; margin-left: 10px; }
+        .status.connected { background: #e8f5e9; color: #2e7d32; }
+        .status.disconnected { background: #ffebee; color: #c62828; }
+        .joystick-btn {
+            padding: 1rem; font-size: 1.25rem; font-weight: bold; border: 2px solid var(--primary);
+            color: var(--primary); background-color: white; border-radius: 0.5rem; transition: all 0.2s;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .joystick-btn:active { background-color: var(--primary); color: white; transform: scale(0.95); }
+        .control-btn {
+            padding: 0.75rem 1rem; font-size: 1rem; font-weight: 600; border: 1px solid #ccc;
+            background-color: #f8f9fa; border-radius: 0.5rem; transition: all 0.2s;
+        }
+        .control-btn:active { background-color: #e9ecef; border-color: #bbb; transform: scale(0.98); }
+    </style>
+</head>
+<body class="p-4">
+    <div class="max-w-4xl w-full mx-auto p-4 md:p-6 bg-white rounded-2xl shadow-lg">
+        <header class="relative text-center mb-6 p-5 rounded-2xl shadow-md bg-white">
+             <a href="index.html" title="메인으로 돌아가기" class="absolute left-4 md:left-6 top-1/2 -translate-y-1/2 p-2 rounded-full hover:bg-gray-100 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                </svg>
+            </a>
+            <h1 class="text-3xl md:text-4xl font-bold" style="color: var(--primary);">🤖 AI 원격 조종기</h1>
+            <p class="text-gray-500 mt-2">버튼을 눌러 MCU 장치를 원격으로 제어하세요.</p>
+        </header>
+
+        <main class="flex flex-col items-center p-4">
+            <div class="w-full max-w-sm mx-auto flex flex-col items-center space-y-8">
+                <!-- Joystick -->
+                <div class="w-full">
+                    <div class="grid grid-cols-3 gap-4 justify-items-center">
+                        <div></div>
+                        <button id="btn-w" class="joystick-btn w-24 h-24 flex flex-col"><span>▲</span><span>W</span></button>
+                        <div></div>
+                        <button id="btn-a" class="joystick-btn w-24 h-24 flex flex-col"><span>◀</span><span>A</span></button>
+                        <button id="btn-s" class="joystick-btn w-24 h-24 flex flex-col text-white bg-red-500 active:bg-red-700"><span>STOP</span><span>S</span></button>
+                        <button id="btn-d" class="joystick-btn w-24 h-24 flex flex-col"><span>▶</span><span>D</span></button>
+                        <div></div>
+                        <button id="btn-x" class="joystick-btn w-24 h-24 flex flex-col"><span>▼</span><span>X</span></button>
+                        <div></div>
+                    </div>
+                </div>
+
+                <!-- Mode & Speed Controls -->
+                <div class="grid grid-cols-2 gap-3 w-full">
+                    <button id="btn-i" class="control-btn">앱 제어 (i)</button>
+                    <button id="btn-m" class="control-btn">수동 제어 (m)</button>
+                    <button id="btn-o" class="control-btn">속도 DOWN (o)</button>
+                    <button id="btn-p" class="control-btn">속도 UP (p)</button>
+                </div>
+            </div>
+
+            <!-- Signal Display -->
+            <div class="w-full max-w-lg mt-8">
+                <div class="bg-gray-50 p-4 rounded-lg text-center">
+                    <h3 class="font-semibold text-gray-600 mb-2">송신 신호</h3>
+                    <div id="signal-display" class="text-2xl font-bold text-blue-600 h-8 flex items-center justify-center">N/A</div>
+                </div>
+            </div>
+        </main>
+
+        <div class="card mt-6 p-4 bg-gray-50 rounded-lg">
+            <h3 class="text-lg font-bold mb-3">🔌 연결 설정</h3>
+            <div class="input-group mb-4">
+                <label for="ble-device-type" class="text-sm font-medium text-gray-700">블루투스 장치 유형</label>
+                <select id="ble-device-type" class="w-full mt-1 p-2 border border-gray-300 rounded-md">
+                    <option value="microbit">마이크로비트 (이름으로 검색)</option>
+                    <option value="generic">일반 UART 장치 (Raspberry Pi Pico W, Arduino, ESP32 등)</option>
+                </select>
+            </div>
+            <div class="flex flex-wrap items-center">
+                <button id="connectSerialBtn" class="btn btn-primary">시리얼 연결</button>
+                <button id="disconnectSerialBtn" class="btn btn-danger" disabled>해제</button>
+                <button id="connectBleBtn" class="btn btn-primary">블루투스 연결</button>
+                <button id="disconnectBleBtn" class="btn btn-danger" disabled>해제</button>
+                <span id="connectionStatus" class="status disconnected">연결 안됨</span>
+            </div>
+        </div>
+
+        <div class="card mt-6 p-4 bg-blue-50 rounded-lg">
+            <h3 class="text-lg font-bold mb-3">💡 사용 방법</h3>
+            <ol class="list-decimal list-inside space-y-2 text-sm text-gray-700">
+                <li>MCU 장치를 시리얼 또는 블루투스로 연결하세요.</li>
+                <li>조이스틱과 제어 버튼을 사용하여 신호를 전송하세요.</li>
+                <li>'송신 신호' 창에서 마지막으로 보낸 신호를 확인할 수 있습니다.</li>
+                <li>MCU에서 수신한 신호(동작제어-w,a,s,d,x, 모드제어-i,m, 최고속도 제어-o,p)에 따라 동작을 제어하세요.</li>
+            </ol>
+        </div>
+
+        <div class="card mt-6 p-4 bg-gray-100 rounded-lg">
+            <h3 class="text-lg font-bold mb-3">👨‍💻 개발자 정보</h3>
+            <div class="text-sm text-gray-600 space-y-2">
+                <p>
+                    <strong>김주현</strong>, 서울특별시교육청 장학사 📅 Since 2025.08.24 | 📧 mtinet@hanmail.net
+                </p>
+                <div class="mt-3 p-3 bg-white rounded border border-gray-200">
+                    <p class="mb-2">WebSerial과 WebBLE를 이용해 원격 제어 신호를 유/무선으로 MCU에 전송하는 웹앱입니다.</p>
+                    <p class="mb-2">✅ 라즈베리파이 피코 W, 아두이노, 마이크로비트, ESP32 등 모든 MCU를 사용할 수 있습니다.</p>
+                    <p class="mb-2">🌐 Chrome, Bluefy 브라우저에서 테스트 되었습니다.</p>
+                    <p class="mb-2">⚙️ 하드웨어는 블록코딩이나 텍스트 코딩을 이용해 사전에 코드 업로드가 필요합니다.</p>
+                    <p class="mt-3 font-medium">📜 CCL: BY-NC-ND</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const CONFIG = {
+            SERIAL_BAUD_RATE: 9600,
+            BLE_SERVICE_UUID: '6e400001-b5a3-f393-e0a9-e50e24dcca9e',
+            BLE_CHARACTERISTIC_UUID: '6e400002-b5a3-f393-e0a9-e50e24dcca9e',
+        };
+
+        const UIManager = {
+            elements: {},
+            init() {
+                this.elements = {
+                    connectSerialBtn: document.getElementById('connectSerialBtn'),
+                    disconnectSerialBtn: document.getElementById('disconnectSerialBtn'),
+                    connectBleBtn: document.getElementById('connectBleBtn'),
+                    disconnectBleBtn: document.getElementById('disconnectBleBtn'),
+                    connectionStatus: document.getElementById('connectionStatus'),
+                    signalDisplay: document.getElementById('signal-display'),
+                    btnW: document.getElementById('btn-w'),
+                    btnA: document.getElementById('btn-a'),
+                    btnS: document.getElementById('btn-s'),
+                    btnD: document.getElementById('btn-d'),
+                    btnX: document.getElementById('btn-x'),
+                    btnI: document.getElementById('btn-i'),
+                    btnM: document.getElementById('btn-m'),
+                    btnO: document.getElementById('btn-o'),
+                    btnP: document.getElementById('btn-p'),
+                };
+            },
+            updateConnectionStatus() {
+                const serialConnected = !!ConnectionManager.port;
+                const bleConnected = !!(ConnectionManager.bleDevice?.gatt?.connected);
+                const connectionType = serialConnected ? '시리얼' : (bleConnected ? '블루투스' : null);
+
+                if (connectionType) {
+                    this.elements.connectionStatus.textContent = `${connectionType} 연결됨`;
+                    this.elements.connectionStatus.className = 'status connected';
+                } else {
+                    this.elements.connectionStatus.textContent = '연결 안됨';
+                    this.elements.connectionStatus.className = 'status disconnected';
+                }
+
+                this.elements.connectSerialBtn.disabled = !!connectionType;
+                this.elements.disconnectSerialBtn.disabled = !serialConnected;
+                this.elements.connectBleBtn.disabled = !!connectionType;
+                this.elements.disconnectBleBtn.disabled = !bleConnected;
+            },
+            updateSignalDisplay(signal) {
+                this.elements.signalDisplay.textContent = signal.toUpperCase();
+            }
+        };
+
+        const ConnectionManager = {
+            port: null, writer: null,
+            bleDevice: null, bleCharacteristic: null,
+
+            async sendToMCU(data) {
+                if (!this.port && !this.bleCharacteristic) {
+                    alert('장치가 연결되지 않았습니다. 시리얼 또는 블루투스로 먼저 연결해주세요.');
+                    return;
+                }
+                const dataToSend = data + '\n';
+                if (this.port?.writable) {
+                    try {
+                        this.writer = this.port.writable.getWriter();
+                        await this.writer.write(new TextEncoder().encode(dataToSend));
+                    } catch (e) { console.error("시리얼 데이터 전송 오류:", e); }
+                    finally { if (this.writer) { this.writer.releaseLock(); this.writer = null; } }
+                }
+                if (this.bleCharacteristic) {
+                    try { await this.bleCharacteristic.writeValueWithResponse(new TextEncoder().encode(dataToSend)); } 
+                    catch (e) { console.error("BLE 데이터 전송 오류:", e); }
+                }
+            },
+
+            async connectSerial() {
+                try {
+                    const port = await navigator.serial.requestPort();
+                    await port.open({ baudRate: CONFIG.SERIAL_BAUD_RATE });
+                    this.port = port;
+                    UIManager.updateConnectionStatus();
+                    this.listenForSerialDisconnect();
+                } catch(e) {
+                    if (e.name !== 'NotFoundError') {
+                       alert(`시리얼 연결 오류: ${e.message}`);
+                    }
+                }
+            },
+            
+            async listenForSerialDisconnect() {
+                if (!this.port) return;
+                try {
+                    const readableStreamClosed = this.port.readable.closed;
+                    const writableStreamClosed = this.port.writable.closed;
+                    await Promise.race([readableStreamClosed, writableStreamClosed]);
+                    this.port = null;
+                    UIManager.updateConnectionStatus();
+                } catch (e) {
+                    // Ignore errors
+                }
+            },
+
+            async disconnectSerial() {
+                if (!this.port) return;
+                try {
+                    if (this.port.readable || this.port.writable) await this.port.close();
+                } catch (e) { console.error('포트 닫기 중 오류:', e); }
+                finally {
+                    this.port = null;
+                    UIManager.updateConnectionStatus();
+                }
+            },
+
+            async connectBLE() {
+                const devType = document.getElementById('ble-device-type').value;
+                const opts = devType === 'microbit'
+                    ? {filters:[{namePrefix:"BBC micro:bit"}], optionalServices:[CONFIG.BLE_SERVICE_UUID]}
+                    : {acceptAllDevices: true, optionalServices:[CONFIG.BLE_SERVICE_UUID]};
+                try {
+                    this.bleDevice = await navigator.bluetooth.requestDevice(opts);
+                    this.bleDevice.addEventListener('gattserverdisconnected', () => {
+                        this.bleDevice = null;
+                        this.bleCharacteristic = null;
+                        UIManager.updateConnectionStatus();
+                    });
+                    const server = await this.bleDevice.gatt.connect();
+                    const service = await server.getPrimaryService(CONFIG.BLE_SERVICE_UUID);
+                    this.bleCharacteristic = await service.getCharacteristic(CONFIG.BLE_CHARACTERISTIC_UUID);
+                    UIManager.updateConnectionStatus();
+                    alert('블루투스 연결 성공!');
+                } catch(e) {
+                    alert(`블루투스 연결 오류: ${e.message}`);
+                    UIManager.updateConnectionStatus();
+                }
+            },
+            disconnectBLE() {
+                if(this.bleDevice?.gatt.connected){
+                    this.bleDevice.gatt.disconnect();
+                }
+            }
+        };
+
+        const RemoteControlApp = {
+            init() {
+                UIManager.init();
+                UIManager.elements.connectSerialBtn.addEventListener('click', () => ConnectionManager.connectSerial());
+                UIManager.elements.disconnectSerialBtn.addEventListener('click', () => ConnectionManager.disconnectSerial());
+                UIManager.elements.connectBleBtn.addEventListener('click', () => ConnectionManager.connectBLE());
+                UIManager.elements.disconnectBleBtn.addEventListener('click', () => ConnectionManager.disconnectBLE());
+
+                const controls = {
+                    'btnW': 'w', 'btnA': 'a', 'btnS': 's', 'btnD': 'd', 'btnX': 'x',
+                    'btnI': 'i', 'btnM': 'm', 'btnO': 'o', 'btnP': 'p'
+                };
+
+                for (const [btnId, signal] of Object.entries(controls)) {
+                    const button = UIManager.elements[btnId];
+                    if (button) {
+                        button.addEventListener('click', () => this.sendSignal(signal));
+                    }
+                }
+                window.ConnectionManager = ConnectionManager;
+            },
+
+            sendSignal(signal) {
+                ConnectionManager.sendToMCU(signal);
+                UIManager.updateSignalDisplay(signal);
+            }
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            RemoteControlApp.init();
+        });
+
+        document.addEventListener('contextmenu', event => event.preventDefault());
+    </script>
+</body>
+</html>
